@@ -6,6 +6,8 @@
 #2) find all SRRs of this project
 esearch -db sra -query $1 | efetch -format runinfo > annotation_$1.csv
 #annotation_$1.csv is the annotation table that you can use later on
+#scp stantikhonov@globe.autosome.ru:~/agingsignature/PRJNA281127/annotation_PRJNA281127.csv ~/Documents/
+#you can view the annotation with the above command
 
 #3) extract SRRs from the table (they are in the first column, hence “print $1”)
 awk -F "\"*,\"*" '{print $1}' annotation_$1.csv | tail -n +2 > SRRlist.txt
