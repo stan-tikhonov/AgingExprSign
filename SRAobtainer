@@ -13,8 +13,11 @@ esearch -db sra -query $1 | efetch -format runinfo > annotation_$1.csv
 awk -F "\"*,\"*" '{print $1}' annotation_$1.csv | tail -n +2 > SRRlist.txt
 
 #4) download all of the fastq files for the given SRP in a tmux session
-fastq-dump --split-files --gzip $(cat SRRlist.txt)
-rm SRRlist.txt
+mkdir fastq.raw
+cd fastq.raw
+fastq-dump --split-files --gzip $(cat ../SRRlist.txt)
+#rm ../SRRlist.txt
+cd ../
 
 #5) run fastqc on all of the fastq files
 mkdir fastqc.results
