@@ -1,5 +1,11 @@
-GEOID,PMID/DOI,Organism,Tissues,Ages,N samples,Platform
-GSE66715,27135913,rat,brain; liver,6; 24 m,12,rnaseq
-GSE57809,25437555,mouse,liver,3; 21 m,7,rnaseq
-GSE74463,26886165,mouse,kidney,14; 96 w,7,microarray
-GSE132901,https://doi.org/10.1101/657726,mouse,kidney,29; 31; 34; 88; 91; 93 w,7,Single cell rnaseq
+GEOID;PMID/DOI;Organism;Strain;Tissues;Ages;Sex;N samples;Method;Platform
+GSE66715;27135913;rat;;brain liver;6 24 m;;12;rnaseq;
+GSE57809;25437555;mouse;;liver;3 21 m;;7;rnaseq;
+GSE74463;26886165;mouse;;kidney;14 96 w;;7;microarray;
+GSE132901;https://doi.org/10.1101/657726;mouse;;kidney;29 31 34 88 91 93 w;;7;Single cell rnaseq;
+E-MTAB-3374;26036689;mouse;;liver;2.5 18 m;;6;microarray;
+PRJNA516151;31533046;rat;;liver kidney skeletal-muscle hippocampus;6 9 12 18 21 24 27 m;;;;
+GSE53959;24836906;mus musculus;C57BI/6J;skeletal muscle;3 15 24 29 m;female;16;microarray;MGGE AGHS1C 8 ? 60K Agilent SurePrint G3 GE
+SRP053350;26541291;mus musculus;;liver;;;;rnaseq;
+PRJNA281127;30858345;mus musculus;C57BL/6N;heart liver cerebellum olfactory-bulb;3 12 29 m;male;;rnaseq;
+GSE123981;;;;;;;;;
