@@ -13,7 +13,7 @@ esearch -db sra -query $1 | efetch -format runinfo > annotation_$1.csv
 # In case you need to filter sth out first (here I filtered out ChIP-Seq):
 #awk -F "\"*,\"*" '(NR == 1) || ($13 == "RNA-Seq")' annotation_$1.csv | awk -F "\"*,\"*" '{print $1}' | tail -n +2 > SRRlist.txt
 #awk -F "\"*,\"*" '(NR == 1) || ($13 == "RNA-Seq")' annotation_$1.csv > annotation_$1.csv
-awk -F "\"*,\"*" '{print $1}' annotation_$1.csv | tail -n +2 > SRRlist.txt
+awk -F "\"*,\"*" '$1 ~ /SRR/ {print $1}' annotation_$1.csv > SRRlist.txt
 
 #4) download all of the fastq files for the given SRP in a tmux session
 mkdir sras
