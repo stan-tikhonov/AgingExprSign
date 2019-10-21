@@ -1,0 +1,34 @@
+GEOID;PMID/DOI;Organism;Strain;Tissues;Ages;Sex;N samples;Method;Platform
+GSE5086;16789832;homo sapiens;;rectus abdominis plus sth else;many;male;44;microarray;Affymetrix Human Genome U133 Plus 2.0 Array
+GSE5086;16789832;homo sapiens;;rectus abdominis plus sth else;many;female;37;microarray;Affymetrix Human Genome U133 Plus 2.0 Array
+GSE9103;18716044;homo sapiens;;vastus lateralis;N/A;N/A;20;microarray;Affymetrix Human Genome U133 Plus 2.0 Array
+GTEx latest release;;homo sapiens;;everything;;;;;
+E-MTAB-3374;26036689;mus musculus;CD-1;liver;2.5 18 m;female;6;microarray;Illumina MouseRef-8 v1.1 Expression BeadChip
+GSE123981;sanya;mus musculus;C57BL/6;kidney;3 20 32 m;male;10;rnaseq;Illumina NextSeq 500/550
+GSE123981;sanya;mus musculus;C57BL/6;liver;1 3 11 20 26 32 m;male;18;rnaseq;Illumina NextSeq 500/550
+GSE3150;19943135;mus musculus;C57BL/6;liver;4 10 22 m;male;16;microarray;Affymetrix Mouse Genome 430 2.0 Array
+GSE53959;24836906;mus musculus;C57BI/6J;gastrocnemius;3 15 24 29 m;female;16;microarray;Agilent-028005 SurePrint G3 Mouse GE 8x60K Microarray
+GSE57809;25437555;mus musculus;C57BL/6;liver;3 21 m;male;7;rnaseq;Illumina HiSeq 2500
+GSE6591;17726092;mus musculus;C57BL/6J;lung;2 18 26 m;male;9;microarray;Affymetrix Mouse Genome 430 2.0 Array
+GSE6591;17726092;mus musculus;DBA/2J;lung;2 18 m;male;6;microarray;Affymetrix Mouse Genome 430 2.0 Array
+GSE74463;26886165;mus musculus;FVB/C57BL/6;kidney;14 96 w;female;7;microarray;Affymetrix Mouse Gene 1.0 ST Array
+PRJNA281127;30858345;mus musculus;C57BL/6N;cerebellum;3 12 29 m;male;10;rnaseq;Illumina HiSeq 2000
+PRJNA281127;30858345;mus musculus;C57BL/6N;heart;3 12 29 m;male;10;rnaseq;Illumina HiSeq 2000
+PRJNA281127;30858345;mus musculus;C57BL/6N;liver;3 12 29 m;male;10;rnaseq;Illumina HiSeq 2000
+PRJNA281127;30858345;mus musculus;C57BL/6N;olfactory bulb;3 12 29 m;male;10;rnaseq;Illumina HiSeq 2000
+GSE53960;24510058;rattus norvegicus;Fischer 344;brain;2 6 21 104 w;male;16;rnaseq;Illumina HiSeq 2000
+GSE53960;24510058;rattus norvegicus;Fischer 344;brain;2 6 21 104 w;female;16;rnaseq;Illumina HiSeq 2000
+GSE53960;24510058;rattus norvegicus;Fischer 344;heart;2 6 21 104 w;male;16;rnaseq;Illumina HiSeq 2000
+GSE53960;24510058;rattus norvegicus;Fischer 344;heart;2 6 21 104 w;female;16;rnaseq;Illumina HiSeq 2000
+GSE53960;24510058;rattus norvegicus;Fischer 344;kidney;2 6 21 104 w;male;16;rnaseq;Illumina HiSeq 2000
+GSE53960;24510058;rattus norvegicus;Fischer 344;kidney;2 6 21 104 w;female;16;rnaseq;Illumina HiSeq 2000
+GSE53960;24510058;rattus norvegicus;Fischer 344;liver;2 6 21 104 w;male;16;rnaseq;Illumina HiSeq 2000
+GSE53960;24510058;rattus norvegicus;Fischer 344;liver;2 6 21 104 w;female;16;rnaseq;Illumina HiSeq 2000
+GSE53960;24510058;rattus norvegicus;Fischer 344;lung;2 6 21 104 w;male;16;rnaseq;Illumina HiSeq 2000
+GSE53960;24510058;rattus norvegicus;Fischer 344;lung;2 6 21 104 w;female;16;rnaseq;Illumina HiSeq 2000
+GSE53960;24510058;rattus norvegicus;Fischer 344;muscle;2 6 21 104 w;male;16;rnaseq;Illumina HiSeq 2000
+GSE53960;24510058;rattus norvegicus;Fischer 344;muscle;2 6 21 104 w;female;16;rnaseq;Illumina HiSeq 2000
+PRJNA516151;31533046;rattus norvegicus;SD;gastrocnemius;6 9 12 18 21 24 27 m;male;;rnaseq;Illumina HiSeq4000
+PRJNA516151;31533046;rattus norvegicus;SD;hippocampus;6 9 12 18 21 24 27 m;male;;rnaseq;Illumina HiSeq4000
+PRJNA516151;31533046;rattus norvegicus;SD;kidney;6 9 12 18 21 24 27 m;male;;rnaseq;Illumina HiSeq4000
+PRJNA516151;31533046;rattus norvegicus;SD;liver;6 9 12 18 21 24 27 m;male;;rnaseq;Illumina HiSeq4000
