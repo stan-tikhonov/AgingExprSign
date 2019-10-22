@@ -5,4 +5,5 @@
 #make star_indexed directory for output files
 #finally, run STAR indexer inside the genome directory:
 STAR --runThreadN 8 --runMode genomeGenerate --genomeDir ./star_indexed/ --genomeFastaFiles ./fasta/Rattus_norvegicus.Rn
-or_6.0.dna.toplevel.fa --sjdbGTFfile ./gtf/Rattus_norvegicus.Rnor_6.0.98.gtf.gz (taking 16 threads for this is OK)
+or_6.0.dna.toplevel.fa --sjdbGTFfile ./gtf/Rattus_norvegicus.Rnor_6.0.98.gtf.gz          #(taking 16 threads for this is OK)
+#you can add --limitGenomeGenerateRAM ################# in case the genome is too large for the default RAM limit
