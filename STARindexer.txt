@@ -1,0 +1,8 @@
+#to index a genome you need to download a .dna.toplevel.fa.gz file from the latest genome release,
+#and the .gtf (without chr or anything else)(you can download both from Ensembl using wget)
+#then make a directory for the genome and go there
+#fasta file should be located in the fasta directory within the genome directory, gtf file in the gtf directory
+#make star_indexed directory for output files
+#finally, run STAR indexer inside the genome directory:
+STAR --runThreadN 8 --runMode genomeGenerate --genomeDir ./star_indexed/ --genomeFastaFiles ./fasta/Rattus_norvegicus.Rn
+or_6.0.dna.toplevel.fa --sjdbGTFfile ./gtf/Rattus_norvegicus.Rnor_6.0.98.gtf.gz (taking 16 threads for this is OK)
