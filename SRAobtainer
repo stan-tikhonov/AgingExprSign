@@ -17,9 +17,7 @@ awk -F "\"*,\"*" '$1 ~ /SRR/ {print $1}' annotation_$1.csv > SRRlist.txt
 
 #4) download all of the fastq files for the given SRP in a tmux session
 mkdir sras
-cd sras
-prefetch --option-file ../SRRlist.txt
-cd ../
+prefetch --option-file SRRlist.txt -O ./sras
 mkdir fastq.raw
 cd fastq.raw
 fastq-dump --split-files --gzip ../sras/*.sra
