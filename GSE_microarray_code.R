@@ -139,7 +139,7 @@ contrast_matrix <- makeContrasts(age_18_vs_27 = age18, diet_EOD_vs_standard = di
 diffexprfit <- lmFit(newscaledexprdataqn, design_matrix)
 diffexprfitcontrast <- contrasts.fit(diffexprfit, contrast_matrix)
 diffexprfitcontrast <- eBayes(diffexprfitcontrast)
-volcanoplotot(diffexprfitcontrast, coef = "age_18_vs_27") #you can substitute age18vs27 with any comparison group
+volcanoplot(diffexprfitcontrast, coef = "age_18_vs_27") #you can substitute age18vs27 with any comparison group
 top_genes <- topTable(diffexprfitcontrast, number = Inf, adjust = "BH") #you can add coef here too
 diffexprresult <- decideTests(diffexprfitcontrast) #the threshold is 0.05 for adjusted p-value by default 
 summary(diffexprresult)
