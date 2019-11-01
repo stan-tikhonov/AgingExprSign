@@ -113,9 +113,11 @@ get_upper_tri <- function(cormat){
 
 # Reorder the correlation matrix
 cormatrix <- reorder_cormat(cormatrix)
+cormatrix = apply(cormatrix, 2, rev)
 upper_tri <- get_upper_tri(cormatrix)
 # Melt the correlation matrix
-melted_cormat <- melt(upper_tri, na.rm = TRUE)
+#melted_cormat <- melt(upper_tri, na.rm = TRUE)
+melted_cormat <- melt(cormatrix, na.rm = TRUE)
 # Create a ggheatmap
 ggheatmap <- ggplot(melted_cormat, aes(Var2, Var1, fill = value))+
   geom_tile(color = "white")+
