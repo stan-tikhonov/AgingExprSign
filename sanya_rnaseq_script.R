@@ -128,3 +128,16 @@ ggheatmap <- ggplot(melted_cormat, aes(Var2, Var1, fill = value))+
   theme(axis.text.x = element_text(angle = 45, vjust = 1, 
                                    size = 12, hjust = 1))+
   coord_fixed()
+#Venn diagrams
+venn.diagram(
+  x = list(rownames(subset(sanya_kidney_3ages, sanya_kidney_3ages$logFC < 0 & sanya_kidney_3ages$FDR < 0.05)), rownames(subset(sanya_liver_6ages, sanya_liver_6ages$logFC < 0 & sanya_liver_6ages$FDR < 0.05))),
+  category.names = c("sanya_kidney" , "sanya_liver"), fill = c(alpha("#440154ff",0.3), alpha('#21908dff',0.3)),
+  filename = 'venn_diagramm_down.png', imagetype = "png",  
+  output=TRUE
+)
+venn.diagram(
+  x = list(rownames(subset(sanya_kidney_3ages, sanya_kidney_3ages$logFC > 0 & sanya_kidney_3ages$FDR < 0.05)), rownames(subset(sanya_liver_6ages, sanya_liver_6ages$logFC > 0 & sanya_liver_6ages$FDR < 0.05))),
+  category.names = c("sanya_kidney" , "sanya_liver"), fill = c(alpha("#440154ff",0.3), alpha('#21908dff',0.3)),
+  filename = 'venn_diagramm_up.png', imagetype = "png",  
+  output=TRUE
+)
