@@ -1,7 +1,7 @@
 GEOID;PMID/DOI;Organism;Strain;Tissues;Ages;Sex;N samples;Method;Platform
 GSE5086;16789832;homo sapiens;;rectus abdominis plus sth else;many;male;44;microarray;Affymetrix Human Genome U133 Plus 2.0 Array
 GSE5086;16789832;homo sapiens;;rectus abdominis plus sth else;many;female;37;microarray;Affymetrix Human Genome U133 Plus 2.0 Array
-GSE9103;18716044;homo sapiens;;vastus lateralis;N/A;N/A;20;microarray;Affymetrix Human Genome U133 Plus 2.0 Array
+GSE9103;18716044;homo sapiens;;vastus lateralis;18-30 59-76 y;N/A;20;microarray;Affymetrix Human Genome U133 Plus 2.0 Array
 GTEx latest release;;homo sapiens;;everything;;;;;
 E-MTAB-3374;26036689;mus musculus;CD-1;liver;2.5 18 m;female;6;microarray;Illumina MouseRef-8 v1.1 Expression BeadChip
 GSE123981;sanya;mus musculus;C57BL/6;kidney;3 20 32 m;male;10;rnaseq;Illumina NextSeq 500/550
@@ -32,3 +32,16 @@ PRJNA516151;31533046;rattus norvegicus;SD;gastrocnemius;6 9 12 18 21 24 27 m;mal
 PRJNA516151;31533046;rattus norvegicus;SD;hippocampus;6 9 12 18 21 24 27 m;male;;rnaseq;Illumina HiSeq4000
 PRJNA516151;31533046;rattus norvegicus;SD;kidney;6 9 12 18 21 24 27 m;male;;rnaseq;Illumina HiSeq4000
 PRJNA516151;31533046;rattus norvegicus;SD;liver;6 9 12 18 21 24 27 m;male;;rnaseq;Illumina HiSeq4000
+GSE66715;27135913;rattus norvegicus;Fischer 344;liver;6 24 m;N/A;6;rnaseq;Illumina HiSeq 2000
+GSE66715;27135913;rattus norvegicus;Fischer 344;brain;6 24 m;N/A;6;rnaseq;Illumina HiSeq 2000
+GSE11291;18523577;mus musculus;B6C3F1;heart;5 30 m;male;10;microarray;Affymetrix Mouse Genome 430 2.0 Array
+GSE11291;18523577;mus musculus;B6C3F1;muscle;5 30 m;male;10;microarray;Affymetrix Mouse Genome 430 2.0 Array
+GSE11291;18523577;mus musculus;B6C3F1;brain;5 30 m;male;10;microarray;Affymetrix Mouse Genome 430 2.0 Array
+GSE34378;23795901;mus musculus;C57Bl/6;liver;13 26 52 78 104 130 w;female;18;microarray;Affymetrix Mouse Genome 430 2.0 Array
+GSE34378;23795901;mus musculus;C57Bl/6;kidney;13 26 52 78 104 130 w;female;18;microarray;Affymetrix Mouse Genome 430 2.0 Array
+GSE34378;23795901;mus musculus;C57Bl/6;lung;13 26 52 78 104 130 w;female;18;microarray;Affymetrix Mouse Genome 430 2.0 Array
+GSE34378;23795901;mus musculus;C57Bl/6;brain;13 26 52 78 104 130 w;female;18;microarray;Affymetrix Mouse Genome 430 2.0 Array
+GSE27625;22049228;rattus norvegicus;Fischer 344;liver;3 24 m;male;16;microarray;Affymetrix Rat Genome 230 2.0 Array
+GSE40645;24524210;homo sapiens;;muscle;many;male;15;microarray;Illumina HumanHT-12 V3.0 expression beadchip
+GSE40645;24524210;homo sapiens;;muscle;many;female;13;microarray;Illumina HumanHT-12 V3.0 expression beadchip
+GSE12480;https://doi.org/10.1021/tx400078b;mus musculus;C57BL/6J;heart;4-6 25-28 m;male;20;microarray;Affymetrix Mouse Genome 430 2.0 Array
