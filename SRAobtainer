@@ -27,4 +27,10 @@ cd ../
 
 #5) run fastqc on all of the fastq files
 mkdir fastqc.results
-find ./ -maxdepth 1 -type f -exec bash -c 'bn=$(basename {}); bn1=${bn%.*}; zcat {} | fastqc stdin:$bn1 -o fastqc.results' \; > fastqc.results/fastqc.log
+#find ./ -maxdepth 1 -type f -exec bash -c 'bn=$(basename {}); bn1=${bn%.*}; zcat {} | fastqc stdin:$bn1 -o fastqc.results' \; > fastqc.results/fastqc.log
+cd fastq.raw
+#repeat the following command for several files:
+gzip -dc SRR5642574_2.fastq.gz > ../fastqc.results/SRR5642574_2.fastq
+cd ../fastqc.results
+#repeat the following command for those files:
+fastqc SRR5642574_2.fastq
