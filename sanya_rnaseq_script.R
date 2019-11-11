@@ -23,6 +23,8 @@ filteredexprdata1 = subset(filteredexprdata1, select = -c(rowsum))
 logdata = log2(filteredexprdata1 + 1)
 filteredexprstack = stack(logdata)
 ggplot(filteredexprstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+keknames = sub("_(.*)$", "", rownames(filteredexprdata1))
+rownames(filteredexprdata1) = keknames
 source("FUN.Ensembl_mouse_dictionary_create.R")
 dic = Ensembl_mouse_dictionary_create(filteredexprdata1)
 source("FUN.Ensembl_to_entrez.R")
@@ -30,8 +32,6 @@ normdata = Ensembl_to_entrez(filteredexprdata1, dic)
 source("FUN.RLE_normalization.R")
 library(edgeR)
 normdata = RLE_normalization(normdata)
-keknames = sub("_(.*)$", "", rownames(normdata))
-rownames(normdata) = keknames
 normdata  = log2(normdata + 1)
 visualstack = stack(normdata)
 ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
@@ -73,7 +73,7 @@ edger_matrix = DGEList(filteredexprdata1)
 edger_matrix = calcNormFactors(edger_matrix, method = "RLE")
 edger_matrix = estimateDisp(edger_matrix, design_matrix, robust = TRUE)
 fit = glmFit(edger_matrix, design_matrix)
-result <- topTags(glmLRT(fit,coef="Age"),n=Inf,adjust.method = "BH")$table
+result <- topTags(glmLRT(fit,coef="Age"),n=Inf,adjust.method = "BH")$tables
 #correlation matrix and heatmap
 alex_signatures = dget("Signatures_mouse_genes.R")
 logFCmatrix = sanya_kidney_3ages["logFC"]

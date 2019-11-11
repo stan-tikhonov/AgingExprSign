@@ -12,6 +12,10 @@ gse = getGEO("GSE11845") #here, type your gse id
 filteredphenodata = data.frame(pData(gse[[1]]))
 # if you have the dataframe already, just name it filteredphenodata
 
+# FILTER CONTROL REGEX (filter out noncontrol groups in phenodata)
+filteredphenodata = subset(filteredphenodata, subset = grepl('.*sedentary.*', filteredphenodata$title))
+# takes only rows containing "sedentary" in the column "title"
+
 # separate by tissue
 # NONALPHANUMERIC
 # (if everything is in one column separated with underscores or sth similar)
@@ -34,7 +38,7 @@ filteredexprdata = na.omit(filteredexprdata)
 
 #$$$$$ filter genes with low expression
 # LOG2 (logarithmize if needed)
-logdata = log2(filteredexprdata1 + 1)
+logdata = log2(filteredexprdata + 1)
 # CHECK PEAK
 # (first look if there is a peak at low values of expression)
 visualstack = stack(logdata)
@@ -53,7 +57,7 @@ ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, colo
 
 #$$$$$ Scale
 # SCALE (ordinary scaling)
-scaledexprdata = data.frame(scale(filteredexprdata))
+scaledexprdata = data.frame(scale(logdata))
 visualstack = stack(scaledexprdata)
 ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
 
@@ -65,9 +69,10 @@ rownames(normdata) = rownames(scaledexprdata)
 rm(scaledexprdata)
 visualstack = stack(normdata)
 ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# if it is not needed: normdata <- scaledexprdata
 
 
-#$$$$$ Convert to Entrez (from Ensembl)(take mean of reads)
+#$$$$$ Convert to Entrez (from Ensembl)(take mean of fluorescence)
 # CONVERT (convert and take means)
 source("FUN.Ensembl_mouse_dictionary_create.R") #if rat or human, use the corresponding function
 dic = Ensembl_mouse_dictionary_create(normdata)
@@ -77,17 +82,20 @@ visualstack = stack(normdata)
 ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
 
 # LOOKUP (entrez is already there, just take the means)
+featuredata = fData(gse[[1]])
+featuredata = subset(featuredata, subset = grepl("^[0-9]+$", featuredata$ENTREZ_GENE_ID)) # get rid of multiple entrez per chip ID
 exd <- normdata
-lookup = fData(gse[[1]])[, c('ID', 'Entrez_Gene_ID')]
+lookup = featuredata[, c('ID', 'ENTREZ_GENE_ID')]
 exd$ID = rownames(exd)
 exd <- left_join(exd, lookup)
-exd = na.omit(exd, cols=Entrez_Gene_ID)
-exd <- exd %>% group_by(Entrez_Gene_ID) %>% summarize_each(mean, matches("^GSM.*"))
-normdata <- exd %>% remove_rownames() %>% column_to_rownames(var = "Entrez_Gene_ID")
+exd = na.omit(exd, cols=ENTREZ_GENE_ID)
+exd <- exd %>% group_by(ENTREZ_GENE_ID) %>% summarize_each(mean, matches("^GSM.*"))
+normdata <- exd %>% remove_rownames() %>% column_to_rownames(var = "ENTREZ_GENE_ID")
 visualstack = stack(normdata)
 ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
 
 
+#$$$$$ PCA
 exprforpca = data.frame(t(scale(t(normdata))))
 pcamodel = prcomp(t(exprforpca))
 cluster_values = as.data.frame(pcamodel[['x']])
@@ -129,21 +137,23 @@ sexyphenodata$Age = sub("m$", "", sexyphenodata$Age) # delete nonnumeric charact
 sexyphenodata$Age = as.integer(sexyphenodata$Age)
 design_matrix = model.matrix(~ sexyphenodata$Age)
 rownames(design_matrix) = rownames(sexyphenodata)
-colnames(design_matrix) <- c("(Intercept)", "Age")
+colnames(design_matrix) <- c("Intercept", "Age")
 
 # CATEGORIAL (design matrix for categorial data)
 currentfactor <- factor(sexyphenodata$Age)
-currentfactor = relevel(currentfactor, "3m") # adjust for your age entries
-design_matrix = model.matrix(~ currentfactor)
+currentfactor = relevel(currentfactor, "3m") # adjust for your age entries (here 3m
+design_matrix = model.matrix(~ currentfactor) #                     is the youngest)
 rownames(design_matrix) = rownames(sexyphenodata)
-colnames(design_matrix) <- c("(Intercept)", "Age") #the "Age" ones should be older
+colnames(design_matrix) <- c("Intercept", "Age") #the "Age" ones should be older
 
 # Launch limma
-contrast_matrix <- makeContrasts(paste("Age", "=", "Age"), levels=design_matrix)
-diffexprfit <- lmFit(currentexprdata, design_matrix)
+contrast_matrix <- makeContrasts("Age", levels=design_matrix)
+diffexprfit <- lmFit(sexyexprdata, design_matrix)
 diffexprfitcontrast <- contrasts.fit(diffexprfit, contrast_matrix)
 diffexprfitcontrast <- eBayes(diffexprfitcontrast)
-logFClist[["GSE####"]][["Liver"]][["Male"]] <- topTable(diffexprfitcontrast, coef = "Age", number = Inf, adjust = "BH")
+logFClist[["Mouse"]][["GSE####"]][["Liver"]][["Male"]] <- topTable(diffexprfitcontrast, coef = "Age", number = Inf, adjust = "BH", confint = TRUE)
+# calculate standard error
+logFClist$Mouse$GSE123981$Liver$Male$SE = (logFClist$Mouse$GSE123981$Liver$Male$CI.R - logFClist$Mouse$GSE123981$Liver$Male$CI.L) / 3.92
 
 
 
