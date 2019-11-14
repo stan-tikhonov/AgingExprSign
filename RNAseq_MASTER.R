@@ -145,3 +145,5 @@ logFClist[["Mouse"]][["GSE####"]][["Liver"]][["Male"]] <- topTable(diffexprfitco
 logFClist$Mouse$GSE123981$Liver$Male$SE = (logFClist$Mouse$GSE123981$Liver$Male$CI.R - logFClist$Mouse$GSE123981$Liver$Male$CI.L) / 3.92
 
 
+# save progress
+save(logFClist, file = "logFClist.RData")
