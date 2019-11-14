@@ -6,11 +6,17 @@ library(limma)
 
 
 #>>>>> NEW TISSUE (for a new tissue, start here)
-#$$$$$ get filtered phenodata and exprdata
+#$$$$$ get filtered phenodata and exprdata and fixed featuredata
 # get phenodata
 gse = getGEO("GSE11845") #here, type your gse id
 filteredphenodata = data.frame(pData(gse[[1]]))
 # if you have the dataframe already, just name it filteredphenodata
+
+# fix featuredata:
+featuredata = fData(gse[[1]])
+for (row in 1:nrow(problems(fData(gse[[1]])))) {
+  featuredata[as.integer(problems(fData(gse[[1]]))[row, "row"]), as.character(problems(fData(gse[[1]]))[row, "col"])] = as.character(problems(fData(gse[[1]]))[row, "actual"])
+}
 
 # FILTER CONTROL REGEX (filter out noncontrol groups in phenodata)
 filteredphenodata = subset(filteredphenodata, subset = grepl('.*sedentary.*', filteredphenodata$title))
@@ -76,13 +82,13 @@ ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, colo
 # CONVERT (convert and take means)
 source("FUN.Ensembl_mouse_dictionary_create.R") #if rat or human, use the corresponding function
 dic = Ensembl_mouse_dictionary_create(normdata)
-source("FUN.Ensembl_to_entrez.R")
+source("FUN.Ensembl_to_entrez_for_microarray.R")
 normdata = Ensembl_to_entrez(normdata, dic)
 visualstack = stack(normdata)
 ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
 
 # LOOKUP (entrez is already there, just take the means)
-featuredata = fData(gse[[1]])
+# featuredata = fData(gse[[1]])
 featuredata = subset(featuredata, subset = grepl("^[0-9]+$", featuredata$ENTREZ_GENE_ID)) # get rid of multiple entrez per chip ID
 exd <- normdata
 lookup = featuredata[, c('ID', 'ENTREZ_GENE_ID')]
