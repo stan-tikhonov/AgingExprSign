@@ -90,9 +90,13 @@ ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, colo
 
 
 #$$$$$ Convert to Entrez (from Ensembl)(take mean of fluorescence)
-# CONVERT (convert and take means)
+# CONVERT GENES (convert and take means)
 source("FUN.Ensembl_mouse_dictionary_create.R") #if rat or human, use the corresponding function
 dic = Ensembl_mouse_dictionary_create(normdata)
+# CONVERT TRANSCRIPTS
+source("FUN.Ensembl_mouse_dictionary_create_for_trans.R") #if rat or human, use the corresponding function
+dic = Ensembl_mouse_dictionary_create_for_trans(normdata)
+# dic done here
 source("FUN.Ensembl_to_entrez_for_microarray.R")
 normdata = Ensembl_to_entrez(normdata, dic)
 visualstack = stack(normdata)
