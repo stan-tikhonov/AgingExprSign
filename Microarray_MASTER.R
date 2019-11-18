@@ -208,5 +208,16 @@ dev.off()
 # save progress
 save(logFClist, file = "logFClist.RData")
 
-
-
+# this is for GSE74463:
+m = gregexpr("ENSMUST[[:digit:]]+", featuredata$gene_assignment, perl = TRUE)
+ensembls = regmatches(featuredata$gene_assignment, m)
+for (i in 1:length(ensembls)){
+  if (length(ensembls[[i]]) == 0){
+    ensembls[[i]] = NA
+  } else if (length(ensembls[[i]]) > 1){
+    ensembls[[i]] = NA
+  }
+}
+featuredata$ENSEMBL_ID = unlist(ensembls)
+rownames(normdata) = sub("ENSMUST", "ENSMUSG", rownames(normdata))
+entrezcolname = "ENSEMBL_ID"
