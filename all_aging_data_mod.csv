@@ -7,11 +7,11 @@ E-MTAB-3374;26036689;mus musculus;CD-1;liver;2.5 18 m;female;6;microarray;Illumi
 GSE123981;sanya;mus musculus;C57BL/6;kidney;3 20 32 m;male;10;rnaseq;Illumina NextSeq 500/550;LogFC;
 GSE123981;sanya;mus musculus;C57BL/6;liver;1 3 11 20 26 32 m;male;18;rnaseq;Illumina NextSeq 500/550;LogFC;
 GSE3150;19943135;mus musculus;C57BL/6;liver;4 10 22 m;male;16;microarray;Affymetrix Mouse Genome 430 2.0 Array;LogFC;
-GSE53959;24836906;mus musculus;C57BI/6J;gastrocnemius;3 15 24 29 m;female;16;microarray;Agilent-028005 SurePrint G3 Mouse GE 8x60K Microarray;LogFC;25k genes after entrez conv went down to 5k
+GSE53959;24836906;mus musculus;C57BI/6J;gastrocnemius;3 15 24 29 m;female;16;microarray;Agilent-028005 SurePrint G3 Mouse GE 8x60K Microarray;LogFC;25k ensembl genes after entrez conv went down to 5k
 GSE57809;25437555;mus musculus;C57BL/6;liver;3 21 m;male;7;rnaseq;Illumina HiSeq 2500;klutch;processed data in separate files
 GSE6591;17726092;mus musculus;C57BL/6J;lung;2 18 26 m;male;9;microarray;Affymetrix Mouse Genome 430 2.0 Array;LogFC;
 GSE6591;17726092;mus musculus;DBA/2J;lung;2 18 m;male;6;microarray;Affymetrix Mouse Genome 430 2.0 Array;LogFC;
-GSE74463;26886165;mus musculus;FVB/C57BL/6;kidney;14 96 w;female;7;microarray;Affymetrix Mouse Gene 1.0 ST Array;;
+GSE74463;26886165;mus musculus;FVB/C57BL/6;kidney;14 96 w;female;7;microarray;Affymetrix Mouse Gene 1.0 ST Array;LogFC;11k ensembl genes after entrez conv went down to 2k
 PRJNA281127;30858345;mus musculus;C57BL/6N;cerebellum;3 12 29 m;male;10;rnaseq;Illumina HiSeq 2000;;
 PRJNA281127;30858345;mus musculus;C57BL/6N;heart;3 12 29 m;male;10;rnaseq;Illumina HiSeq 2000;;
 PRJNA281127;30858345;mus musculus;C57BL/6N;liver;3 12 29 m;male;10;rnaseq;Illumina HiSeq 2000;;
