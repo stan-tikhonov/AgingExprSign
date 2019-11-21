@@ -7,12 +7,22 @@ Ensembl_mouse_dictionary_create_for_trans <- function(dataset){
         xx <- as.list(org.Mm.egENSEMBLTRANS)
         huix = list()
         counter = 1
+        blacklist = vector()
         for (el in xx){
                 if (!is.na(el[1])){
                         for (i in el){
-                                huix[[i]] = names(xx)[counter]
+                                if (i %in% names(huix)){
+                                        blacklist <- c(blacklist, i)
+                                } else {
+                                        huix[[i]] = names(xx)[counter]
+                                }
                         }}
                 counter = counter + 1
+        }
+        for (i in names(huix)){
+                if (i %in% blacklist){
+                        huix[[i]] = NULL
+                }
         }
         xx <- huix
         ensembltoentrez <- data.frame(ID=rownames(dataset),ENTREZID=NA)

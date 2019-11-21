@@ -2,7 +2,7 @@
 #This script uses previously found Ensembl to Entrez dictionary and transforms
 #Ensembl data into Entrez
 
-Ensembl_to_entrez <- function(dataset,dictionary){
+Ensembl_to_entrez_for_microarray <- function(dataset,dictionary){
         Entrez_dataset <- NULL
         i <- 0
         for (v in ls(dictionary))

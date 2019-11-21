@@ -3,6 +3,7 @@ library(tidyverse)
 library(preprocessCore)
 library(GEOquery)
 library(limma)
+library(ggrepel)
 
 
 #>>>>> NEW TISSUE (for a new tissue, start here)
@@ -15,8 +16,9 @@ filteredphenodata = data.frame(pData(gse[[1]]))
 # set up target list element:
 target = list()
 
-# fix featuredata:
+# get featuredata!:
 featuredata = fData(gse[[1]])
+# fix it:
 for (row in 1:nrow(problems(fData(gse[[1]])))) {
   featuredata[as.integer(problems(fData(gse[[1]]))[row, "row"]), as.character(problems(fData(gse[[1]]))[row, "col"])] = as.character(problems(fData(gse[[1]]))[row, "actual"])
 }
@@ -38,6 +40,8 @@ filteredphenodata = subset(filteredphenodata, Tissue == "liver")
 # SEPARATED ALREADY
 # (if you have a separate column)
 filteredphenodata = subset(filteredphenodata, Tissue == "liver")
+# rename the column if necessary:
+# filteredphenodata = filteredphenodata %>% dplyr::rename(Tissue=tissue.ch1)
 # GREP
 # (if it is bad and you need to grep)
 filteredphenodata = subset(filteredphenodata, grepl("^Liver tissue.*", source_name_ch1))
@@ -98,7 +102,7 @@ source("FUN.Ensembl_mouse_dictionary_create_for_trans.R") #if rat or human, use 
 dic = Ensembl_mouse_dictionary_create_for_trans(normdata)
 # dic done here
 source("FUN.Ensembl_to_entrez_for_microarray.R")
-normdata = Ensembl_to_entrez(normdata, dic)
+normdata = Ensembl_to_entrez_for_microarray(normdata, dic)
 visualstack = stack(normdata)
 ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
 
@@ -125,7 +129,9 @@ cluster_plot = ggplot(cluster_values, aes(x = PC1, y = PC2))
 color_pca = filteredphenodata[, "Age"]
 cluster_plot + geom_point(aes(color = color_pca))
 # OUTLIERS
-cluster_plot + geom_point(aes(color = color_pca)) + geom_text(aes(label=rownames(cluster_values)),hjust=0, vjust=0)
+# if boxes obscure something, use this:
+# cluster_plot + geom_point(aes(color = color_pca)) + geom_text_repel(aes(label=rownames(cluster_values)),hjust="inward", vjust="inward")
+cluster_plot + geom_point(aes(color = color_pca)) + geom_label_repel(aes(label=rownames(cluster_values)),hjust="inward", vjust="inward")
 # save it:
 target[["PCA"]] <- cluster_plot + geom_point(aes(color = color_pca))
 
@@ -187,6 +193,7 @@ target[["LogFC_table"]]$SE = (target[["LogFC_table"]]$CI.R - target[["LogFC_tabl
 topgenes = target[["LogFC_table"]]
 copps = as.data.frame(cbind(colnames(sexyexprdata), as.numeric(sexyexprdata[rownames(topgenes)[1],]), as.integer(sexyphenodata$Age)))
 copps$V3 = as.integer(as.character(copps$V3))
+copps$V2 = as.double(as.character(copps$V2))
 # copps$V2 = as.numeric(sub(",", ".", copps$V2))
 copps = copps %>% arrange(V2)
 ggplot(copps, aes(x = copps$V3, y = copps$V2, color = copps$V3)) + geom_point() + labs(colour = "age in months", x = "age", y = "Expression",title = paste("entrez ID", rownames(topgenes)[1], sep = " "))
