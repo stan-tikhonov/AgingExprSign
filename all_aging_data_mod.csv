@@ -16,24 +16,24 @@ PRJNA281127;30858345;mus musculus;C57BL/6N;cerebellum;3 12 29 m;male;10;rnaseq;I
 PRJNA281127;30858345;mus musculus;C57BL/6N;heart;3 12 29 m;male;10;rnaseq;Illumina HiSeq 2000;;
 PRJNA281127;30858345;mus musculus;C57BL/6N;liver;3 12 29 m;male;10;rnaseq;Illumina HiSeq 2000;;
 PRJNA281127;30858345;mus musculus;C57BL/6N;olfactory bulb;3 12 29 m;male;10;rnaseq;Illumina HiSeq 2000;;
-GSE53960;24510058;rattus norvegicus;Fischer 344;brain;2 6 21 104 w;male;16;rnaseq;Illumina HiSeq 2000;;
-GSE53960;24510058;rattus norvegicus;Fischer 344;brain;2 6 21 104 w;female;16;rnaseq;Illumina HiSeq 2000;;
-GSE53960;24510058;rattus norvegicus;Fischer 344;heart;2 6 21 104 w;male;16;rnaseq;Illumina HiSeq 2000;;
-GSE53960;24510058;rattus norvegicus;Fischer 344;heart;2 6 21 104 w;female;16;rnaseq;Illumina HiSeq 2000;;
-GSE53960;24510058;rattus norvegicus;Fischer 344;kidney;2 6 21 104 w;male;16;rnaseq;Illumina HiSeq 2000;;
-GSE53960;24510058;rattus norvegicus;Fischer 344;kidney;2 6 21 104 w;female;16;rnaseq;Illumina HiSeq 2000;;
-GSE53960;24510058;rattus norvegicus;Fischer 344;liver;2 6 21 104 w;male;16;rnaseq;Illumina HiSeq 2000;;
-GSE53960;24510058;rattus norvegicus;Fischer 344;liver;2 6 21 104 w;female;16;rnaseq;Illumina HiSeq 2000;;
-GSE53960;24510058;rattus norvegicus;Fischer 344;lung;2 6 21 104 w;male;16;rnaseq;Illumina HiSeq 2000;;
-GSE53960;24510058;rattus norvegicus;Fischer 344;lung;2 6 21 104 w;female;16;rnaseq;Illumina HiSeq 2000;;
-GSE53960;24510058;rattus norvegicus;Fischer 344;muscle;2 6 21 104 w;male;16;rnaseq;Illumina HiSeq 2000;;
-GSE53960;24510058;rattus norvegicus;Fischer 344;muscle;2 6 21 104 w;female;16;rnaseq;Illumina HiSeq 2000;;
+GSE53960;24510058;rattus norvegicus;Fischer 344;brain;2 6 21 104 w;male;16;rnaseq;Illumina HiSeq 2000;klutch;processed data in separate files
+GSE53960;24510058;rattus norvegicus;Fischer 344;brain;2 6 21 104 w;female;16;rnaseq;Illumina HiSeq 2000;klutch;processed data in separate files
+GSE53960;24510058;rattus norvegicus;Fischer 344;heart;2 6 21 104 w;male;16;rnaseq;Illumina HiSeq 2000;klutch;processed data in separate files
+GSE53960;24510058;rattus norvegicus;Fischer 344;heart;2 6 21 104 w;female;16;rnaseq;Illumina HiSeq 2000;klutch;processed data in separate files
+GSE53960;24510058;rattus norvegicus;Fischer 344;kidney;2 6 21 104 w;male;16;rnaseq;Illumina HiSeq 2000;klutch;processed data in separate files
+GSE53960;24510058;rattus norvegicus;Fischer 344;kidney;2 6 21 104 w;female;16;rnaseq;Illumina HiSeq 2000;klutch;processed data in separate files
+GSE53960;24510058;rattus norvegicus;Fischer 344;liver;2 6 21 104 w;male;16;rnaseq;Illumina HiSeq 2000;klutch;processed data in separate files
+GSE53960;24510058;rattus norvegicus;Fischer 344;liver;2 6 21 104 w;female;16;rnaseq;Illumina HiSeq 2000;klutch;processed data in separate files
+GSE53960;24510058;rattus norvegicus;Fischer 344;lung;2 6 21 104 w;male;16;rnaseq;Illumina HiSeq 2000;klutch;processed data in separate files
+GSE53960;24510058;rattus norvegicus;Fischer 344;lung;2 6 21 104 w;female;16;rnaseq;Illumina HiSeq 2000;klutch;processed data in separate files
+GSE53960;24510058;rattus norvegicus;Fischer 344;muscle;2 6 21 104 w;male;16;rnaseq;Illumina HiSeq 2000;klutch;processed data in separate files
+GSE53960;24510058;rattus norvegicus;Fischer 344;muscle;2 6 21 104 w;female;16;rnaseq;Illumina HiSeq 2000;klutch;processed data in separate files
 PRJNA516151;31533046;rattus norvegicus;SD;gastrocnemius;6 9 12 18 21 24 27 m;male;;rnaseq;Illumina HiSeq4000;;
 PRJNA516151;31533046;rattus norvegicus;SD;hippocampus;6 9 12 18 21 24 27 m;male;;rnaseq;Illumina HiSeq4000;;
 PRJNA516151;31533046;rattus norvegicus;SD;kidney;6 9 12 18 21 24 27 m;male;;rnaseq;Illumina HiSeq4000;;
 PRJNA516151;31533046;rattus norvegicus;SD;liver;6 9 12 18 21 24 27 m;male;;rnaseq;Illumina HiSeq4000;;
-GSE66715;27135913;rattus norvegicus;Fischer 344;liver;6 24 m;N/A;6;rnaseq;Illumina HiSeq 2000;;
-GSE66715;27135913;rattus norvegicus;Fischer 344;brain;6 24 m;N/A;6;rnaseq;Illumina HiSeq 2000;;
+GSE66715;27135913;rattus norvegicus;Fischer 344;liver;6 24 m;N/A;6;rnaseq;Illumina HiSeq 2000;klutch;processed data in separate files and it has two columns
+GSE66715;27135913;rattus norvegicus;Fischer 344;brain;6 24 m;N/A;6;rnaseq;Illumina HiSeq 2000;klutch;processed data in separate files and it has two columns
 GSE11291;18523577;mus musculus;B6C3F1;heart;5 30 m;male;10;microarray;Affymetrix Mouse Genome 430 2.0 Array;LogFC;
 GSE11291;18523577;mus musculus;B6C3F1;muscle;5 30 m;male;10;microarray;Affymetrix Mouse Genome 430 2.0 Array;LogFC;
 GSE11291;18523577;mus musculus;B6C3F1;brain;5 30 m;male;10;microarray;Affymetrix Mouse Genome 430 2.0 Array;LogFC;
@@ -41,7 +41,7 @@ GSE34378;23795901;mus musculus;C57Bl/6;liver;13 26 52 78 104 130 w;female;18;mic
 GSE34378;23795901;mus musculus;C57Bl/6;kidney;13 26 52 78 104 130 w;female;18;microarray;Affymetrix Mouse Genome 430 2.0 Array;LogFC;
 GSE34378;23795901;mus musculus;C57Bl/6;lung;13 26 52 78 104 130 w;female;18;microarray;Affymetrix Mouse Genome 430 2.0 Array;LogFC;
 GSE34378;23795901;mus musculus;C57Bl/6;brain;13 26 52 78 104 130 w;female;18;microarray;Affymetrix Mouse Genome 430 2.0 Array;LogFC;Outliers made me discard 3 age groups
-GSE27625;22049228;rattus norvegicus;Fischer 344;liver;3 24 m;male;16;microarray;Affymetrix Rat Genome 230 2.0 Array;;
+GSE27625;22049228;rattus norvegicus;Fischer 344;liver;3 24 m;male;16;microarray;Affymetrix Rat Genome 230 2.0 Array;LogFC;
 GSE40645;24524210;homo sapiens;;muscle;many;male;15;microarray;Illumina HumanHT-12 V3.0 expression beadchip;LogFC;
 GSE40645;24524210;homo sapiens;;muscle;many;female;13;microarray;Illumina HumanHT-12 V3.0 expression beadchip;LogFC;
 GSE12480;https://doi.org/10.1021/tx400078b;mus musculus;C57BL/6J;heart;4-6 25-28 m;male;20;microarray;Affymetrix Mouse Genome 430 2.0 Array;LogFC;
