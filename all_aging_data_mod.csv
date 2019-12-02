@@ -1,12 +1,12 @@
 GEOID;PMID/DOI;Organism;Strain;Tissues;Ages;Sex;N samples;Method;Platform;Status;
-GSE5086;16789832;homo sapiens;;rectus abdominis plus sth else;many;male;44;microarray;Affymetrix Human Genome U133 Plus 2.0 Array;LogFC;
-GSE5086;16789832;homo sapiens;;rectus abdominis plus sth else;many;female;37;microarray;Affymetrix Human Genome U133 Plus 2.0 Array;LogFC;
-GSE9103;18716044;homo sapiens;;vastus lateralis;18-30 59-76 y;N/A;20;microarray;Affymetrix Human Genome U133 Plus 2.0 Array;LogFC;
+GSE5086;16789832;homo sapiens;;rectus abdominis plus sth else;many;male;44;microarray;Affymetrix Human Genome U133 Plus 2.0 Array;Done;
+GSE5086;16789832;homo sapiens;;rectus abdominis plus sth else;many;female;37;microarray;Affymetrix Human Genome U133 Plus 2.0 Array;Done;
+GSE9103;18716044;homo sapiens;;vastus lateralis;18-30 59-76 y;N/A;20;microarray;Affymetrix Human Genome U133 Plus 2.0 Array;Done;
 GTEx latest release;;homo sapiens;;everything;;;;;;;
 E-MTAB-3374;26036689;mus musculus;CD-1;liver;2.5 18 m;female;6;microarray;Illumina MouseRef-8 v1.1 Expression BeadChip;LogFC;
-GSE123981;sanya;mus musculus;C57BL/6;kidney;3 20 32 m;male;10;rnaseq;Illumina NextSeq 500/550;LogFC;
-GSE123981;sanya;mus musculus;C57BL/6;liver;1 3 11 20 26 32 m;male;18;rnaseq;Illumina NextSeq 500/550;LogFC;
-GSE3150;19943135;mus musculus;C57BL/6;liver;4 10 22 m;male;16;microarray;Affymetrix Mouse Genome 430 2.0 Array;LogFC;
+GSE123981;sanya;mus musculus;C57BL/6;kidney;3 20 32 m;male;10;rnaseq;Illumina NextSeq 500/550;Done;
+GSE123981;sanya;mus musculus;C57BL/6;liver;1 3 11 20 26 32 m;male;18;rnaseq;Illumina NextSeq 500/550;Done;
+GSE3150;19943135;mus musculus;C57BL/6;liver;4 10 22 m;male;16;microarray;Affymetrix Mouse Genome 430 2.0 Array;Done;
 GSE53959;24836906;mus musculus;C57BI/6J;gastrocnemius;3 15 24 29 m;female;16;microarray;Agilent-028005 SurePrint G3 Mouse GE 8x60K Microarray;LogFC;25k ensembl genes after entrez conv went down to 8k
 GSE57809;25437555;mus musculus;C57BL/6;liver;3 21 m;male;7;rnaseq;Illumina HiSeq 2500;klutch;processed data in separate files
 GSE6591;17726092;mus musculus;C57BL/6J;lung;2 18 26 m;male;9;microarray;Affymetrix Mouse Genome 430 2.0 Array;LogFC;

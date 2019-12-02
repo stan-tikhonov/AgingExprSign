@@ -166,10 +166,11 @@ target[["Processed_density"]] <- ggplot(visualstack, aes=(x=values)) + geom_dens
 #$$$$$ Limma
 # CONTINUOUS (design matrix for continuous data)
 sexyphenodata$Age = sub("m$", "", sexyphenodata$Age) # delete nonnumeric characters
-sexyphenodata$Age = as.integer(sexyphenodata$Age)
+sexyphenodata$Age = as.numeric(as.character(sexyphenodata$Age))
 design_matrix = model.matrix(~ sexyphenodata$Age)
 rownames(design_matrix) = rownames(sexyphenodata)
 colnames(design_matrix) <- c("Intercept", "Age")
+print(design_matrix)
 
 # CATEGORIAL (design matrix for categorial data)
 currentfactor <- factor(sexyphenodata$Age)
@@ -177,6 +178,7 @@ currentfactor = relevel(currentfactor, "3m") # adjust for your age entries (here
 design_matrix = model.matrix(~ currentfactor) #                     is the youngest)
 rownames(design_matrix) = rownames(sexyphenodata)
 colnames(design_matrix) <- c("Intercept", "Age") #the "Age" ones should be older
+print(design_matrix)
 
 # Launch limma
 contrast_matrix <- makeContrasts("Age", levels=design_matrix)
@@ -191,8 +193,8 @@ target[["LogFC_table"]]$SE = (target[["LogFC_table"]]$CI.R - target[["LogFC_tabl
 #$$$$$ Plot expression for top 1 diff expressed gene
 # EXPR PLOT
 topgenes = target[["LogFC_table"]]
-copps = as.data.frame(cbind(colnames(sexyexprdata), as.numeric(sexyexprdata[rownames(topgenes)[1],]), as.integer(sexyphenodata$Age)))
-copps$V3 = as.integer(as.character(copps$V3))
+copps = as.data.frame(cbind(colnames(sexyexprdata), as.numeric(sexyexprdata[rownames(topgenes)[1],]), as.numeric(sexyphenodata$Age)))
+copps$V3 = as.numeric(as.character(copps$V3))
 copps$V2 = as.double(as.character(copps$V2))
 # copps$V2 = as.numeric(sub(",", ".", copps$V2))
 copps = copps %>% arrange(V2)
@@ -202,8 +204,9 @@ target[["Topgene_expression"]] <- ggplot(copps, aes(x = copps$V3, y = copps$V2, 
 
 # dump the data:
 logFClist[["Mouse"]][["GSE####"]][["Liver"]][["Male"]] <- target$LogFC_table
-name = "Mouse_GSE123981_Liver_Male"
-pdf(paste0("./plots/", name, "_processeddensity", ".pdf"))
+name = "Human_GSE5086_Muscle"
+gender = "Male"
+pdf(paste0("./plots/", name, "_", gender, "_processeddensity", ".pdf"))
 print(target$Processed_density)
 dev.off()
 pdf(paste0("./plots/", name, "_rawdensity", ".pdf"))
@@ -212,7 +215,7 @@ dev.off()
 pdf(paste0("./plots/", name, "_pca", ".pdf"))
 print(target$PCA)
 dev.off()
-pdf(paste0("./plots/", name, "_topgeneexpression", ".pdf"))
+pdf(paste0("./plots/", name, "_", gender, "_topgeneexpression", ".pdf"))
 print(target$Topgene_expression)
 dev.off()
 
