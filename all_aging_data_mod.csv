@@ -1,6 +1,6 @@
 GEOID;PMID/DOI;Organism;Strain;Tissues;Ages;Sex;N samples;Method;Platform;Status;
-GSE5086;16789832;homo sapiens;;rectus abdominis plus sth else;many;male;44;microarray;Affymetrix Human Genome U133 Plus 2.0 Array;;
-GSE5086;16789832;homo sapiens;;rectus abdominis plus sth else;many;female;37;microarray;Affymetrix Human Genome U133 Plus 2.0 Array;;
+GSE5086;16789832;homo sapiens;;rectus abdominis plus sth else;many;male;44;microarray;Affymetrix Human Genome U133 Plus 2.0 Array;LogFC;
+GSE5086;16789832;homo sapiens;;rectus abdominis plus sth else;many;female;37;microarray;Affymetrix Human Genome U133 Plus 2.0 Array;LogFC;
 GSE9103;18716044;homo sapiens;;vastus lateralis;18-30 59-76 y;N/A;20;microarray;Affymetrix Human Genome U133 Plus 2.0 Array;LogFC;
 GTEx latest release;;homo sapiens;;everything;;;;;;;
 E-MTAB-3374;26036689;mus musculus;CD-1;liver;2.5 18 m;female;6;microarray;Illumina MouseRef-8 v1.1 Expression BeadChip;LogFC;
