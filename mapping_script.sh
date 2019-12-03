@@ -1,3 +1,8 @@
+# if you use Makarich:
+#!/bin/bash
+#PBS -d .
+#PBS -l walltime=200:00:00,mem=10gb,nodes=1,ncpus=10
+
 #!/bin/sh
 #1) Prepare output directories
 mkdir star_output
