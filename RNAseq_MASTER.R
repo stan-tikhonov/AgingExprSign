@@ -8,7 +8,7 @@ library(ggrepel)
 #>>>>> NEW TISSUE (for a new tissue, start here)
 #$$$$$ get filtered phenodata and exprdata
 # get phenodata
-gse = getGEO("GSE11845") #here, type your gse id
+gse = getGEO("GSE#####") #here, type your gse id
 filteredphenodata = data.frame(pData(gse[[1]]))
 # if you have the dataframe already, just name it filteredphenodata
 
@@ -25,6 +25,10 @@ for (row in 1:nrow(problems(fData(gse[[1]])))) {
 # FILTER CONTROL REGEX (filter out noncontrol groups in phenodata)
 filteredphenodata = subset(filteredphenodata, subset = grepl('.*sedentary.*', filteredphenodata$title))
 # takes only rows containing "sedentary" in the column "title"
+
+# GET AGE (make column "Age" with age integers)
+filteredphenodata$Age = sub("^[^[:digit:]]*", "", filteredphenodata$age.ch1)
+filteredphenodata$Age = sub("[^[:digit:]]*$", "", filteredphenodata$Age)
 
 # separate by tissue
 # NONALPHANUMERIC
@@ -142,7 +146,7 @@ target[["Processed_density"]] <- ggplot(visualstack, aes=(x=values)) + geom_dens
 
 #$$$$$ Limma
 # CONTINUOUS (design matrix for continuous data)
-sexyphenodata$Age = sub("m$", "", sexyphenodata$Age) # delete nonnumeric characters
+# sexyphenodata$Age = sub("m$", "", sexyphenodata$Age) # delete nonnumeric characters
 sexyphenodata$Age = as.numeric(as.character(sexyphenodata$Age))
 design_matrix = model.matrix(~ sexyphenodata$Age)
 rownames(design_matrix) = rownames(sexyphenodata)

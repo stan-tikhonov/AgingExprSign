@@ -9,7 +9,7 @@ library(ggrepel)
 #>>>>> NEW TISSUE (for a new tissue, start here)
 #$$$$$ get filtered phenodata and exprdata and fixed featuredata
 # get phenodata
-gse = getGEO("GSE11845") #here, type your gse id
+gse = getGEO("GSE#####") #here, type your gse id
 filteredphenodata = data.frame(pData(gse[[1]]))
 # if you have the dataframe already, just name it filteredphenodata
 
@@ -165,7 +165,7 @@ target[["Processed_density"]] <- ggplot(visualstack, aes=(x=values)) + geom_dens
 
 #$$$$$ Limma
 # CONTINUOUS (design matrix for continuous data)
-sexyphenodata$Age = sub("m$", "", sexyphenodata$Age) # delete nonnumeric characters
+# sexyphenodata$Age = sub("m$", "", sexyphenodata$Age) # delete nonnumeric characters
 sexyphenodata$Age = as.numeric(as.character(sexyphenodata$Age))
 design_matrix = model.matrix(~ sexyphenodata$Age)
 rownames(design_matrix) = rownames(sexyphenodata)
