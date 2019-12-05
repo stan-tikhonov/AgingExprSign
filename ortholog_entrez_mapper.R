@@ -22,6 +22,8 @@ Rat_to_mouse_orthologs1 = na.omit(Rat_to_mouse_orthologs1)
 Mouse_to_rat_orthologs1 = subset(Mouse_to_rat_orthologs, Mouse_Entrez %in% Rat_to_mouse_orthologs1$Mouse_Entrez)
 Mouse_to_rat_orthologs1 = Mouse_to_rat_orthologs1 %>% group_by(Mouse_Entrez) %>% filter(n() == 1)
 mouse_rat_entrez_map = na.omit(Mouse_to_rat_orthologs1)
+mouse_rat_entrez_map = as.data.frame(mouse_rat_entrez_map)
+mouse_rat_entrez_map = mouse_rat_entrez_map %>% mutate_all(as.character)
 
 Human_to_mouse_orthologs <- getLDS(attributes=c("entrezgene_id"),
                                  mart=human_dataset,attributesL=c("entrezgene_id"), martL=mouse_dataset)
@@ -35,6 +37,8 @@ Human_to_mouse_orthologs1 = na.omit(Human_to_mouse_orthologs1)
 Mouse_to_human_orthologs1 = subset(Mouse_to_human_orthologs, Mouse_Entrez %in% Human_to_mouse_orthologs1$Mouse_Entrez)
 Mouse_to_human_orthologs1 = Mouse_to_human_orthologs1 %>% group_by(Mouse_Entrez) %>% filter(n() == 1)
 mouse_human_entrez_map = na.omit(Mouse_to_human_orthologs1)
+mouse_human_entrez_map = as.data.frame(mouse_human_entrez_map)
+mouse_human_entrez_map = mouse_human_entrez_map %>% mutate_all(as.character)
 
 #correlation matrix and heatmap
 logFCmatrix = logFClist$Mouse$GSE6591$Lung$Male$DBA2J["logFC"]
@@ -44,6 +48,8 @@ logFCmatrix = logFCmatrix %>% column_to_rownames(var = "Row.names")
 logFCmatrix = logFCmatrix %>% rename(Mouse_GSE6581_Lung_Male_C57BL6J = logFC)
 logFClist1 = logFClist
 logFClist1$Mouse$GSE6591 = NULL
+
+# legacy code:
 j = 1
 for (species in names(logFClist1)){
   for (dataset in names(logFClist1[[species]])){
@@ -69,7 +75,38 @@ for (species in names(logFClist1)){
             }
           }
         }
-        logFCmatrix = merge(logFCmatrix, logFClist1[[species]][[dataset]][[tissue]][[sex]]["logFC"], by=0)
+        logFCmatrix = merge(logFCmatrix, logFClist1[[species]][[dataset]][[tissue]][[sex]]["logFC"], by=0, all=TRUE)
+        logFCmatrix = logFCmatrix %>% column_to_rownames(var = "Row.names")
+        colnames(logFCmatrix)[j + 2] = paste0(species, "_", dataset, "_", tissue, "_", sex)
+        j = j + 1
+      }
+    }
+  }
+}
+
+#correct version :)
+j = 1
+for (species in names(logFClist1)){
+  for (dataset in names(logFClist1[[species]])){
+    for (tissue in names(logFClist1[[species]][[dataset]])){
+      for (sex in names(logFClist1[[species]][[dataset]][[tissue]])){
+        if (species == "Rat"){
+          exd <- logFClist1[[species]][[dataset]][[tissue]][[sex]]
+          rownames(exd) = as.character(rownames(exd))
+          exd$Rat_Entrez = rownames(exd)
+          exd <- left_join(exd, mouse_rat_entrez_map)
+          exd = na.omit(exd, cols=Mouse_Entrez)
+          logFClist1[[species]][[dataset]][[tissue]][[sex]] <- exd %>% remove_rownames() %>% column_to_rownames(var = "Mouse_Entrez")
+        }
+        if (species == "Human"){
+          exd <- logFClist1[[species]][[dataset]][[tissue]][[sex]]
+          rownames(exd) = as.character(rownames(exd))
+          exd$Human_Entrez = rownames(exd)
+          exd <- left_join(exd, mouse_human_entrez_map)
+          exd = na.omit(exd, cols=Mouse_Entrez)
+          logFClist1[[species]][[dataset]][[tissue]][[sex]] <- exd %>% remove_rownames() %>% column_to_rownames(var = "Mouse_Entrez")
+        }
+        logFCmatrix = merge(logFCmatrix, logFClist1[[species]][[dataset]][[tissue]][[sex]]["logFC"], by=0, all=TRUE)
         logFCmatrix = logFCmatrix %>% column_to_rownames(var = "Row.names")
         colnames(logFCmatrix)[j + 2] = paste0(species, "_", dataset, "_", tissue, "_", sex)
         j = j + 1
@@ -93,6 +130,8 @@ for (species in names(logFClist1)){
   }
 }
 
+# replace NAs in zeros:
+logFCmatrix = logFCmatrix %>% mutate_all(~replace(., is.na(.), 0))
 
 cormatrix <- round(cor(logFCmatrix, method = "spearman"),2)
 library(reshape2)
@@ -123,8 +162,8 @@ melted_cormat <- melt(cormatrix, na.rm = TRUE)
 # Create a ggheatmap
 ggheatmap <- ggplot(melted_cormat, aes(Var2, Var1, fill = value))+
   geom_tile(color = "white")+
-  scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
-                       midpoint = 0, limit = c(-0.6,0.6), space = "Lab", 
+  scale_fill_gradient2(low = "blue4", high = "red4", mid = "white", 
+                       midpoint = 0, limit = c(-0.4,0.4), space = "Lab", 
                        name="Spearman\nCorrelation") +
   theme_minimal()+ # minimal theme
   theme(axis.text.x = element_text(angle = 45, vjust = 1, 
