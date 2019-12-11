@@ -130,10 +130,10 @@ for (species in names(logFClist1)){
   }
 }
 
-# replace NAs in zeros:
-logFCmatrix = logFCmatrix %>% mutate_all(~replace(., is.na(.), 0))
+# replace NAs by zeros:
+#logFCmatrix = logFCmatrix %>% mutate_all(~replace(., is.na(.), 0))
 
-cormatrix <- round(cor(logFCmatrix, method = "spearman"),2)
+cormatrix <- round(cor(logFCmatrix, method = "spearman", use = "complete.obs"),2)
 library(reshape2)
 reorder_cormat <- function(cormat){
   # Use correlation between variables as distance

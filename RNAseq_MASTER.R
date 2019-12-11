@@ -79,7 +79,7 @@ source("FUN.Ensembl_mouse_dictionary_create.R")
 dic = Ensembl_mouse_dictionary_create(filteredexprdata)
 # CONVERT TRANSCRIPTS
 source("FUN.Ensembl_mouse_dictionary_create_for_trans.R") #if rat or human, use the corresponding function
-dic = Ensembl_mouse_dictionary_create_for_trans(normdata)
+dic = Ensembl_mouse_dictionary_create_for_trans(filteredexprdata)
 source("FUN.Ensembl_to_entrez.R")
 normdata = Ensembl_to_entrez(filteredexprdata, dic)
 source("FUN.RLE_normalization.R")
