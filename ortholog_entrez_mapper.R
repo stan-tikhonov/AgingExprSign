@@ -48,44 +48,10 @@ logFCmatrix = logFCmatrix %>% column_to_rownames(var = "Row.names")
 logFCmatrix = logFCmatrix %>% rename(Mouse_GSE6581_Lung_Male_C57BL6J = logFC)
 logFClist1 = logFClist
 logFClist1$Mouse$GSE6591 = NULL
-
-# legacy code:
-j = 1
-for (species in names(logFClist1)){
-  for (dataset in names(logFClist1[[species]])){
-    for (tissue in names(logFClist1[[species]][[dataset]])){
-      for (sex in names(logFClist1[[species]][[dataset]][[tissue]])){
-        if (species == "Rat"){
-          for (i in 1:length(rownames(logFClist1[[species]][[dataset]][[tissue]][[sex]]))){
-            if (rownames(logFClist1[[species]][[dataset]][[tissue]][[sex]])[i] %in% mouse_rat_entrez_map$Rat_Entrez){
-              rownames(logFClist1[[species]][[dataset]][[tissue]][[sex]])[i] = mouse_rat_entrez_map$Mouse_Entrez[which(mouse_rat_entrez_map$Rat_Entrez == rownames(logFClist1[[species]][[dataset]][[tissue]][[sex]])[i])]
-            }
-            else{
-              logFClist1[[species]][[dataset]][[tissue]][[sex]] = logFClist1[[species]][[dataset]][[tissue]][[sex]][-i,]
-            }
-          }
-        }
-        if (species == "Human"){
-          for (i in 1:length(rownames(logFClist1[[species]][[dataset]][[tissue]][[sex]]))){
-            if (rownames(logFClist1[[species]][[dataset]][[tissue]][[sex]])[i] %in% mouse_human_entrez_map$Human_Entrez){
-              rownames(logFClist1[[species]][[dataset]][[tissue]][[sex]])[i] = mouse_human_entrez_map$Mouse_Entrez[which(mouse_human_entrez_map$Human_Entrez == rownames(logFClist1[[species]][[dataset]][[tissue]][[sex]])[i])]
-            }
-            else{
-              logFClist1[[species]][[dataset]][[tissue]][[sex]] = logFClist1[[species]][[dataset]][[tissue]][[sex]][-i,]
-            }
-          }
-        }
-        logFCmatrix = merge(logFCmatrix, logFClist1[[species]][[dataset]][[tissue]][[sex]]["logFC"], by=0, all=TRUE)
-        logFCmatrix = logFCmatrix %>% column_to_rownames(var = "Row.names")
-        colnames(logFCmatrix)[j + 2] = paste0(species, "_", dataset, "_", tissue, "_", sex)
-        j = j + 1
-      }
-    }
-  }
-}
+totalrownames = rownames(logFCmatrix)
 
 #correct version :)
-j = 1
+#j = 1
 for (species in names(logFClist1)){
   for (dataset in names(logFClist1[[species]])){
     for (tissue in names(logFClist1[[species]][[dataset]])){
@@ -106,14 +72,64 @@ for (species in names(logFClist1)){
           exd = na.omit(exd, cols=Mouse_Entrez)
           logFClist1[[species]][[dataset]][[tissue]][[sex]] <- exd %>% remove_rownames() %>% column_to_rownames(var = "Mouse_Entrez")
         }
-        logFCmatrix = merge(logFCmatrix, logFClist1[[species]][[dataset]][[tissue]][[sex]]["logFC"], by=0, all=TRUE)
-        logFCmatrix = logFCmatrix %>% column_to_rownames(var = "Row.names")
-        colnames(logFCmatrix)[j + 2] = paste0(species, "_", dataset, "_", tissue, "_", sex)
-        j = j + 1
+        totalrownames = union(totalrownames, rownames(logFClist1[[species]][[dataset]][[tissue]][[sex]]))
+#        logFCmatrix = merge(logFCmatrix, logFClist1[[species]][[dataset]][[tissue]][[sex]]["logFC"], by=0, all=TRUE)
+#        logFCmatrix = logFCmatrix %>% column_to_rownames(var = "Row.names")
+#        colnames(logFCmatrix)[j + 2] = paste0(species, "_", dataset, "_", tissue, "_", sex)
+#        j = j + 1
       }
     }
   }
 }
+
+# replenish logFClist1:
+logFClist1$Mouse$GSE6591 = logFClist$Mouse$GSE6591
+
+# create denoised correlation matrix:
+logFCunlisted = list()
+logFCunlisted[["Mouse_GSE6591_Lung_Male_DBA2J"]] = logFClist1$Mouse$GSE6591$Lung$Male$DBA2J
+logFCunlisted[["Mouse_GSE6591_Lung_Male_C57BL6J"]] = logFClist1$Mouse$GSE6591$Lung$Male$C57BL6J
+logFClist1$Mouse$GSE6591 = NULL
+for (species in names(logFClist1)){
+  for (dataset in names(logFClist1[[species]])){
+    for (tissue in names(logFClist1[[species]][[dataset]])){
+      for (sex in names(logFClist1[[species]][[dataset]][[tissue]])){
+        logFCunlisted[[paste(species, dataset, tissue, sex, sep = "_")]] = logFClist1[[species]][[dataset]][[tissue]][[sex]]
+      }
+    }
+  }
+}
+
+# create logFCmatrix:
+logFCmatrix = matrix(nrow = length(totalrownames), ncol = length(logFCunlisted))
+rownames(logFCmatrix) = totalrownames
+colnames(logFCmatrix) = names(logFCunlisted)
+logFCmatrix[rownames(logFClist$Mouse$GSE6591$Lung$Male$DBA2J["logFC"]), "Mouse_GSE6591_Lung_Male_DBA2J"] = logFClist$Mouse$GSE6591$Lung$Male$DBA2J$logFC
+logFCmatrix[rownames(logFClist$Mouse$GSE6591$Lung$Male$C57BL6J["logFC"]), "Mouse_GSE6591_Lung_Male_C57BL6J"] = logFClist$Mouse$GSE6591$Lung$Male$C57BL6J$logFC
+logFClist1$Mouse$GSE6591 = NULL
+for (species in names(logFClist1)){
+  for (dataset in names(logFClist1[[species]])){
+    for (tissue in names(logFClist1[[species]][[dataset]])){
+      for (sex in names(logFClist1[[species]][[dataset]][[tissue]])){
+        logFCmatrix[rownames(logFClist1[[species]][[dataset]][[tissue]][[sex]]), paste(species, dataset, tissue, sex, sep = "_")] = logFClist1[[species]][[dataset]][[tissue]][[sex]]$logFC
+      }
+    }
+  }
+}
+logFCmatrix = as.data.frame(logFCmatrix)
+logFCmartixunfiltered = logFCmatrix
+# filter genes with lots of NAs (half of the number of columns or more)
+logFCmatrix$NACount = rowSums(is.na(logFCmatrix))
+ggplot(logFCmatrix, aes(x = NACount)) + geom_density()
+# choose the threshold according to the plot's bimodal distribution:
+logFCmatrix = logFCmatrix %>% rownames_to_column(var = "row.names")
+logFCmatrix = logFCmatrix %>% filter(NACount < 25) # the treshold is set according to the plot, 15k genes that are left is OK
+logFCmatrix = logFCmatrix %>% column_to_rownames(var = "row.names")
+logFCmatrix$NACount = NULL
+
+# create normal cormatrix
+cormatrix <- round(cor(logFCmatrix, method = "spearman", use = "complete.obs"),2)
+
 
 # this is for choosing one species:
 j = 1
@@ -133,25 +149,7 @@ for (species in names(logFClist1)){
 # replace NAs by zeros:
 #logFCmatrix = logFCmatrix %>% mutate_all(~replace(., is.na(.), 0))
 
-# replenish logFClist1:
-logFClist1$Mouse$GSE6591 = logFClist$Mouse$GSE6591
-
-# create additional matrix for denoising:
-logFCunlisted = list()
-logFCunlisted[["Mouse_GSE6591_Lung_Male_DBA2J"]] = logFClist1$Mouse$GSE6591$Lung$Male$DBA2J
-logFCunlisted[["Mouse_GSE6591_Lung_Male_C57BL6J"]] = logFClist1$Mouse$GSE6591$Lung$Male$C57BL6J
-logFClist1$Mouse$GSE6591 = NULL
-for (species in names(logFClist1)){
-  for (dataset in names(logFClist1[[species]])){
-    for (tissue in names(logFClist1[[species]][[dataset]])){
-      for (sex in names(logFClist1[[species]][[dataset]][[tissue]])){
-        logFCunlisted[[paste(species, dataset, tissue, sex, sep = "_")]] = logFClist1[[species]][[dataset]][[tissue]][[sex]]
-      }
-    }
-  }
-}
-
-cormatrixdenoised = matrix()
+cormatrixdenoised = data.frame()
 for (i in 1:length(logFCunlisted)){
   for (j in i:length(logFCunlisted)){
     topA = logFCunlisted[[i]] %>% rownames_to_column(var = "row.names")
@@ -160,28 +158,26 @@ for (i in 1:length(logFCunlisted)){
     topB = logFCunlisted[[j]] %>% rownames_to_column(var = "row.names")
     topB = topB %>% top_n(-150, adj.P.Val)
     topB = topB %>% column_to_rownames(var = "row.names")
-    cormatrixdenoised[names(logFCunlisted)[i], names(logFCunlisted)[j]] = round(cor(union(topA, topB)$logFC, method = "spearman", use = "complete.obs"),2)
+    totalrownames = union(rownames(topA), rownames(topB))
+    cormatrixdenoised[names(logFCunlisted)[i], names(logFCunlisted)[j]] = round(cor(logFCunlisted[[i]][totalrownames,]$logFC, logFCunlisted[[j]][totalrownames,]$logFC, method = "spearman", use = "complete.obs"),2)
+    cormatrixdenoised[names(logFCunlisted)[j], names(logFCunlisted)[i]] = round(cor(logFCunlisted[[i]][totalrownames,]$logFC, logFCunlisted[[j]][totalrownames,]$logFC, method = "spearman", use = "complete.obs"),2)
+#    mergedmatrix = logFCunlisted[[i]]["logFC"]
+#    mergedmatrix = mergedmatrix %>% dplyr::rename(logFCi = logFC)
+#    mergedmatrix = merge(mergedmatrix, logFCunlisted[[j]]["logFC"], by=0, all=TRUE)
+#    mergedmatrix = mergedmatrix %>% column_to_rownames("Row.names")
+#    cormatrixdenoised[names(logFCunlisted)[i], names(logFCunlisted)[j]] = round(cor(mergedmatrix[union(rownames(topA), rownames(topB)),], method = "spearman", use = "complete.obs"),2)[2,1]
   }
 }
 
-# filter genes with lots of NAs (half of the number of columns or more)
-logFCmatrix$NACount = rowSums(is.na(logFCmatrix))
-logFCmatrix = logFCmatrix %>% rownames_to_column(var = "row.names")
-logFCmatrix = logFCmatrix %>% filter(NACount < length(colnames(logFCmatrix))/2)
-logFCmatrix = logFCmatrix %>% column_to_rownames(var = "row.names")
-logFCmatrix$NACount = NULL
 
-# create normal cormatrix
-cormatrix <- round(cor(logFCmatrix, method = "spearman", use = "complete.obs"),2)
 
-# create denoised cormatrix
-logFCvector1[]
+
 
 library(reshape2)
-reorder_cormat <- function(cormat){
+reorder_cormat <- function(cormat,method="complete"){
   # Use correlation between variables as distance
   dd <- as.dist((1-cormat)/2)
-  hc <- hclust(dd)
+  hc <- hclust(dd,method = method)
   cormat <-cormat[hc$order, hc$order]
 }
 # Get lower triangle of the correlation matrix
@@ -196,17 +192,68 @@ get_upper_tri <- function(cormat){
 }
 
 # Reorder the correlation matrix
-cormatrix <- reorder_cormat(cormatrix)
-cormatrix = apply(cormatrix, 2, rev)
-upper_tri <- get_upper_tri(cormatrix)
+cormatrix_2 <- reorder_cormat(cormatrix,method="average")
+cormatrix_2 = apply(cormatrix_2, 2, rev)
+upper_tri <- get_upper_tri(cormatrix_2)
 # Melt the correlation matrix
 #melted_cormat <- melt(upper_tri, na.rm = TRUE)
-melted_cormat <- melt(cormatrix, na.rm = TRUE)
+melted_cormat <- melt(cormatrix_2, na.rm = TRUE)
 # Create a ggheatmap
 ggheatmap <- ggplot(melted_cormat, aes(Var2, Var1, fill = value))+
   geom_tile(color = "white")+
   scale_fill_gradient2(low = "blue4", high = "red4", mid = "white", 
                        midpoint = 0, limit = c(-0.4,0.4), space = "Lab", 
+                       name="Spearman\nCorrelation") +
+  theme_minimal()+ # minimal theme
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+                                   size = 12, hjust = 1))+
+  coord_fixed()
+ggheatmap
+
+# Reorder the correlation matrix
+cormatrix_2 <- reorder_cormat(cormatrixdenoised,method="average")
+cormatrix_2 = apply(cormatrix_2, 2, rev)
+upper_tri <- get_upper_tri(cormatrix_2)
+# Melt the correlation matrix
+#melted_cormat <- melt(upper_tri, na.rm = TRUE)
+melted_cormat <- melt(cormatrix_2, na.rm = TRUE)
+# Create a ggheatmap
+ggheatmap <- ggplot(melted_cormat, aes(Var2, Var1, fill = value))+
+  geom_tile(color = "white")+
+  scale_fill_gradient2(low = "blue4", high = "red4", mid = "white", 
+                       midpoint = 0, limit = c(-0.8,0.8), space = "Lab", 
+                       name="Spearman\nCorrelation") +
+  theme_minimal()+ # minimal theme
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+                                   size = 12, hjust = 1))+
+  coord_fixed()
+ggheatmap
+
+# analyze human:
+logFCmatrixhuman = dplyr::select(logFCmartixunfiltered, contains("Human"))
+# filter genes with lots of NAs (half of the number of columns or more)
+logFCmatrixhuman$NACount = rowSums(is.na(logFCmatrixhuman))
+ggplot(logFCmatrixhuman, aes(x = NACount)) + geom_density()
+# choose the threshold according to the plot's bimodal distribution:
+logFCmatrixhuman = logFCmatrixhuman %>% rownames_to_column(var = "row.names")
+logFCmatrixhuman = logFCmatrixhuman %>% filter(NACount < 2) # the treshold is set according to the plot, 15k genes that are left is OK
+logFCmatrixhuman = logFCmatrixhuman %>% column_to_rownames(var = "row.names")
+logFCmatrixhuman$NACount = NULL
+
+cormatrixhuman <- round(cor(logFCmatrixhuman, method = "spearman", use = "complete.obs"),2)
+
+# Reorder the correlation matrix
+cormatrix_2 <- reorder_cormat(cormatrixhuman,method="average")
+cormatrix_2 = apply(cormatrix_2, 2, rev)
+upper_tri <- get_upper_tri(cormatrix_2)
+# Melt the correlation matrix
+#melted_cormat <- melt(upper_tri, na.rm = TRUE)
+melted_cormat <- melt(cormatrix_2, na.rm = TRUE)
+# Create a ggheatmap
+ggheatmap <- ggplot(melted_cormat, aes(Var2, Var1, fill = value))+
+  geom_tile(color = "white")+
+  scale_fill_gradient2(low = "blue4", high = "red4", mid = "white", 
+                       midpoint = 0, limit = c(-0.8,0.8), space = "Lab", 
                        name="Spearman\nCorrelation") +
   theme_minimal()+ # minimal theme
   theme(axis.text.x = element_text(angle = 45, vjust = 1, 
