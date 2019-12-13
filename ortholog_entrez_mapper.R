@@ -133,7 +133,50 @@ for (species in names(logFClist1)){
 # replace NAs by zeros:
 #logFCmatrix = logFCmatrix %>% mutate_all(~replace(., is.na(.), 0))
 
+# replenish logFClist1:
+logFClist1$Mouse$GSE6591 = logFClist$Mouse$GSE6591
+
+# create additional matrix for denoising:
+logFCunlisted = list()
+logFCunlisted[["Mouse_GSE6591_Lung_Male_DBA2J"]] = logFClist1$Mouse$GSE6591$Lung$Male$DBA2J
+logFCunlisted[["Mouse_GSE6591_Lung_Male_C57BL6J"]] = logFClist1$Mouse$GSE6591$Lung$Male$C57BL6J
+logFClist1$Mouse$GSE6591 = NULL
+for (species in names(logFClist1)){
+  for (dataset in names(logFClist1[[species]])){
+    for (tissue in names(logFClist1[[species]][[dataset]])){
+      for (sex in names(logFClist1[[species]][[dataset]][[tissue]])){
+        logFCunlisted[[paste(species, dataset, tissue, sex, sep = "_")]] = logFClist1[[species]][[dataset]][[tissue]][[sex]]
+      }
+    }
+  }
+}
+
+cormatrixdenoised = matrix()
+for (i in 1:length(logFCunlisted)){
+  for (j in i:length(logFCunlisted)){
+    topA = logFCunlisted[[i]] %>% rownames_to_column(var = "row.names")
+    topA = topA %>% top_n(-150, adj.P.Val)
+    topA = topA %>% column_to_rownames(var = "row.names")
+    topB = logFCunlisted[[j]] %>% rownames_to_column(var = "row.names")
+    topB = topB %>% top_n(-150, adj.P.Val)
+    topB = topB %>% column_to_rownames(var = "row.names")
+    cormatrixdenoised[names(logFCunlisted)[i], names(logFCunlisted)[j]] = round(cor(union(topA, topB)$logFC, method = "spearman", use = "complete.obs"),2)
+  }
+}
+
+# filter genes with lots of NAs (half of the number of columns or more)
+logFCmatrix$NACount = rowSums(is.na(logFCmatrix))
+logFCmatrix = logFCmatrix %>% rownames_to_column(var = "row.names")
+logFCmatrix = logFCmatrix %>% filter(NACount < length(colnames(logFCmatrix))/2)
+logFCmatrix = logFCmatrix %>% column_to_rownames(var = "row.names")
+logFCmatrix$NACount = NULL
+
+# create normal cormatrix
 cormatrix <- round(cor(logFCmatrix, method = "spearman", use = "complete.obs"),2)
+
+# create denoised cormatrix
+logFCvector1[]
+
 library(reshape2)
 reorder_cormat <- function(cormat){
   # Use correlation between variables as distance
