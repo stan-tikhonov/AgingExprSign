@@ -117,18 +117,18 @@ for (species in names(logFClist1)){
   }
 }
 logFCmatrix = as.data.frame(logFCmatrix)
-logFCmartixunfiltered = logFCmatrix
+logFCmatrixunfiltered = logFCmatrix
 # filter genes with lots of NAs (half of the number of columns or more)
 logFCmatrix$NACount = rowSums(is.na(logFCmatrix))
 ggplot(logFCmatrix, aes(x = NACount)) + geom_density()
 # choose the threshold according to the plot's bimodal distribution:
 logFCmatrix = logFCmatrix %>% rownames_to_column(var = "row.names")
-logFCmatrix = logFCmatrix %>% filter(NACount < 25) # the treshold is set according to the plot, 15k genes that are left is OK
+logFCmatrix = logFCmatrix %>% filter(NACount < 35) # the treshold is set according to the plot, 15k genes that are left is OK
 logFCmatrix = logFCmatrix %>% column_to_rownames(var = "row.names")
 logFCmatrix$NACount = NULL
 
 # create normal cormatrix
-cormatrix <- round(cor(logFCmatrix, method = "spearman", use = "complete.obs"),2)
+cormatrixnafiltered <- round(cor(logFCmatrix, method = "spearman", use = "complete.obs"),2)
 
 
 # this is for choosing one species:
@@ -149,29 +149,65 @@ for (species in names(logFClist1)){
 # replace NAs by zeros:
 #logFCmatrix = logFCmatrix %>% mutate_all(~replace(., is.na(.), 0))
 
-cormatrixdenoised = data.frame()
-for (i in 1:length(logFCunlisted)){
-  for (j in i:length(logFCunlisted)){
-    topA = logFCunlisted[[i]] %>% rownames_to_column(var = "row.names")
-    topA = topA %>% top_n(-150, adj.P.Val)
-    topA = topA %>% column_to_rownames(var = "row.names")
-    topB = logFCunlisted[[j]] %>% rownames_to_column(var = "row.names")
-    topB = topB %>% top_n(-150, adj.P.Val)
-    topB = topB %>% column_to_rownames(var = "row.names")
-    totalrownames = union(rownames(topA), rownames(topB))
-    cormatrixdenoised[names(logFCunlisted)[i], names(logFCunlisted)[j]] = round(cor(logFCunlisted[[i]][totalrownames,]$logFC, logFCunlisted[[j]][totalrownames,]$logFC, method = "spearman", use = "complete.obs"),2)
-    cormatrixdenoised[names(logFCunlisted)[j], names(logFCunlisted)[i]] = round(cor(logFCunlisted[[i]][totalrownames,]$logFC, logFCunlisted[[j]][totalrownames,]$logFC, method = "spearman", use = "complete.obs"),2)
-#    mergedmatrix = logFCunlisted[[i]]["logFC"]
-#    mergedmatrix = mergedmatrix %>% dplyr::rename(logFCi = logFC)
-#    mergedmatrix = merge(mergedmatrix, logFCunlisted[[j]]["logFC"], by=0, all=TRUE)
-#    mergedmatrix = mergedmatrix %>% column_to_rownames("Row.names")
-#    cormatrixdenoised[names(logFCunlisted)[i], names(logFCunlisted)[j]] = round(cor(mergedmatrix[union(rownames(topA), rownames(topB)),], method = "spearman", use = "complete.obs"),2)[2,1]
+cormatrixsign = list()
+cormatrixsign[["100"]] = data.frame()
+cormatrixsign[["200"]] = data.frame()
+cormatrixsign[["300"]] = data.frame()
+for (thres in names(cormatrixsign)){
+  for (i in 1:length(logFCunlisted)){
+    for (j in i:length(logFCunlisted)){
+      topA = logFCunlisted[[i]] %>% rownames_to_column(var = "row.names")
+      topA = topA %>% top_n(-1 * as.integer(as.character(thres)), adj.P.Val)
+      topA = topA %>% column_to_rownames(var = "row.names")
+      topB = logFCunlisted[[j]] %>% rownames_to_column(var = "row.names")
+      topB = topB %>% top_n(-1 * as.integer(as.character(thres)), adj.P.Val)
+      topB = topB %>% column_to_rownames(var = "row.names")
+      totalrownames = union(rownames(topA), rownames(topB))
+      cormatrixsign[[thres]][names(logFCunlisted)[i], names(logFCunlisted)[j]] = cor(logFCunlisted[[i]][totalrownames,]$logFC, logFCunlisted[[j]][totalrownames,]$logFC, method = "spearman", use = "complete.obs")
+      cormatrixsign[[thres]][names(logFCunlisted)[j], names(logFCunlisted)[i]] = cor(logFCunlisted[[i]][totalrownames,]$logFC, logFCunlisted[[j]][totalrownames,]$logFC, method = "spearman", use = "complete.obs")
+  #    mergedmatrix = logFCunlisted[[i]]["logFC"]
+  #    mergedmatrix = mergedmatrix %>% dplyr::rename(logFCi = logFC)
+  #    mergedmatrix = merge(mergedmatrix, logFCunlisted[[j]]["logFC"], by=0, all=TRUE)
+  #    mergedmatrix = mergedmatrix %>% column_to_rownames("Row.names")
+  #    cormatrixdenoised[names(logFCunlisted)[i], names(logFCunlisted)[j]] = round(cor(mergedmatrix[union(rownames(topA), rownames(topB)),], method = "spearman", use = "complete.obs"),2)[2,1]
+    }
+  }
+}
+cormatrixsign[["all"]] = as.data.frame(cor(logFCmatrixunfiltered, method = "spearman", use = "complete.obs"))
+
+# performing cor.test to find statisticaly significant correlations
+corpvalsign = list()
+corpvalsign[["100"]] = data.frame()
+corpvalsign[["200"]] = data.frame()
+corpvalsign[["300"]] = data.frame()
+for (thres in names(corpvalsign)){
+  for (i in 1:length(logFCunlisted)){
+    for (j in i:length(logFCunlisted)){
+      topA = logFCunlisted[[i]] %>% rownames_to_column(var = "row.names")
+      topA = topA %>% top_n(-1 * as.integer(as.character(thres)), adj.P.Val)
+      topA = topA %>% column_to_rownames(var = "row.names")
+      topB = logFCunlisted[[j]] %>% rownames_to_column(var = "row.names")
+      topB = topB %>% top_n(-1 * as.integer(as.character(thres)), adj.P.Val)
+      topB = topB %>% column_to_rownames(var = "row.names")
+      totalrownames = union(rownames(topA), rownames(topB))
+      corpvalsign[[thres]][names(logFCunlisted)[i], names(logFCunlisted)[j]] = as.numeric(cor.test(logFCunlisted[[i]][totalrownames,]$logFC, logFCunlisted[[j]][totalrownames,]$logFC, method = "spearman")$p.value)
+      corpvalsign[[thres]][names(logFCunlisted)[j], names(logFCunlisted)[i]] = as.numeric(cor.test(logFCunlisted[[i]][totalrownames,]$logFC, logFCunlisted[[j]][totalrownames,]$logFC, method = "spearman")$p.value)
+      #    mergedmatrix = logFCunlisted[[i]]["logFC"]
+      #    mergedmatrix = mergedmatrix %>% dplyr::rename(logFCi = logFC)
+      #    mergedmatrix = merge(mergedmatrix, logFCunlisted[[j]]["logFC"], by=0, all=TRUE)
+      #    mergedmatrix = mergedmatrix %>% column_to_rownames("Row.names")
+      #    cormatrixdenoised[names(logFCunlisted)[i], names(logFCunlisted)[j]] = round(cor(mergedmatrix[union(rownames(topA), rownames(topB)),], method = "spearman", use = "complete.obs"),2)[2,1]
+    }
   }
 }
 
-
-
-
+corpvalsign[["all"]] = data.frame()
+for (colnum1 in 1:length(colnames(logFCmatrixunfiltered))){
+  for (colnum2 in colnum1:length(colnames(logFCmatrixunfiltered))){
+    corpvalsign[["all"]][colnames(logFCmatrixunfiltered)[colnum1], colnames(logFCmatrixunfiltered)[colnum2]] = as.numeric(cor.test(logFCmatrixunfiltered[, colnum1], logFCmatrixunfiltered[, colnum2], method = "spearman")$p.value)
+    corpvalsign[["all"]][colnames(logFCmatrixunfiltered)[colnum2], colnames(logFCmatrixunfiltered)[colnum1]] = as.numeric(cor.test(logFCmatrixunfiltered[, colnum1], logFCmatrixunfiltered[, colnum2], method = "spearman")$p.value)
+  }
+}
 
 library(reshape2)
 reorder_cormat <- function(cormat,method="complete"){
@@ -192,7 +228,7 @@ get_upper_tri <- function(cormat){
 }
 
 # Reorder the correlation matrix
-cormatrix_2 <- reorder_cormat(cormatrix,method="average")
+cormatrix_2 <- reorder_cormat(cormatrixnafiltered,method="average")
 cormatrix_2 = apply(cormatrix_2, 2, rev)
 upper_tri <- get_upper_tri(cormatrix_2)
 # Melt the correlation matrix
@@ -211,7 +247,7 @@ ggheatmap <- ggplot(melted_cormat, aes(Var2, Var1, fill = value))+
 ggheatmap
 
 # Reorder the correlation matrix
-cormatrix_2 <- reorder_cormat(cormatrixdenoised,method="average")
+cormatrix_2 <- reorder_cormat(cormatrixsign[["300"]],method="average")
 cormatrix_2 = apply(cormatrix_2, 2, rev)
 upper_tri <- get_upper_tri(cormatrix_2)
 # Melt the correlation matrix
