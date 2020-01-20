@@ -2,14 +2,27 @@ library(biomaRt)
 library(tidyverse)
 
 # create entrez mappings between mouse and rat, and mouse and human
+
+# default:
 ensembl <- useMart("ensembl")
+# in case www.ensembl.org is under maintenance:
+ensembl = useEnsembl("ensembl", host = "uswest.ensembl.org")
+
 datasets <- listDatasets(ensembl)
 rat_dataset = useDataset("rnorvegicus_gene_ensembl", mart=ensembl)
 human_dataset = useDataset("hsapiens_gene_ensembl", mart=ensembl)
 mouse_dataset = useDataset("mmusculus_gene_ensembl", mart=ensembl)
+
+# default:
 rat = useMart("ensembl","rnorvegicus_gene_ensembl")
 human = useMart("ensembl", "hsapiens_gene_ensembl")
 mouse = useMart("ensembl","mmusculus_gene_ensembl")
+
+# in case www.ensembl.org is under maintenance:
+rat = useEnsembl("ensembl","rnorvegicus_gene_ensembl", host = "uswest.ensembl.org")
+human = useEnsembl("ensembl", "hsapiens_gene_ensembl", host = "uswest.ensembl.org")
+mouse = useEnsembl("ensembl","mmusculus_gene_ensembl", host = "uswest.ensembl.org")
+
 Rat_to_mouse_orthologs <- getLDS(attributes=c("entrezgene_id"),
                                    mart=rat_dataset,attributesL=c("entrezgene_id"), martL=mouse_dataset)
 colnames(Rat_to_mouse_orthologs) <- c("Rat_Entrez","Mouse_Entrez")
@@ -209,6 +222,23 @@ for (colnum1 in 1:length(colnames(logFCmatrixunfiltered))){
   }
 }
 
+coradjpvalsign = list()
+coradjpvalsign[["100"]] = data.frame()
+coradjpvalsign[["200"]] = data.frame()
+coradjpvalsign[["300"]] = data.frame()
+coradjpvalsign[["all"]] = data.frame()
+for (thres in names(corpvalsign)){
+  vec = as.vector(corpvalsign[[thres]][upper.tri(corpvalsign[[thres]], diag = F)])
+  vec = p.adjust(vec, method = "BH")
+  tempmatrix = matrix(0, 63, 63)
+  tempmatrix[lower.tri(tempmatrix, diag = F)] = vec
+  tempmatrix = t(tempmatrix)
+  tempmatrix[lower.tri(tempmatrix, diag = F)] = t(tempmatrix)[lower.tri(t(tempmatrix), diag = F)]
+  coradjpvalsign[[thres]] = tempmatrix
+  colnames(coradjpvalsign[[thres]]) = colnames(corpvalsign[[thres]])
+  rownames(coradjpvalsign[[thres]]) = rownames(corpvalsign[[thres]])
+}
+
 library(reshape2)
 reorder_cormat <- function(cormat,method="complete"){
   # Use correlation between variables as distance
@@ -247,7 +277,7 @@ ggheatmap <- ggplot(melted_cormat, aes(Var2, Var1, fill = value))+
 ggheatmap
 
 # Reorder the correlation matrix
-cormatrix_2 <- reorder_cormat(cormatrixsign[["300"]],method="average")
+cormatrix_2 <- reorder_cormat(cormatrixsign[["200"]],method="average")
 cormatrix_2 = apply(cormatrix_2, 2, rev)
 upper_tri <- get_upper_tri(cormatrix_2)
 # Melt the correlation matrix
