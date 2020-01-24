@@ -166,6 +166,12 @@ cormatrixsign = list()
 cormatrixsign[["100"]] = data.frame()
 cormatrixsign[["200"]] = data.frame()
 cormatrixsign[["300"]] = data.frame()
+cormatrixsign[["400"]] = data.frame()
+cormatrixsign[["500"]] = data.frame()
+cormatrixsign[["750"]] = data.frame()
+cormatrixsign[["1000"]] = data.frame()
+cormatrixsign[["1500"]] = data.frame()
+cormatrixsign[["2000"]] = data.frame()
 for (thres in names(cormatrixsign)){
   for (i in 1:length(logFCunlisted)){
     for (j in i:length(logFCunlisted)){
@@ -193,6 +199,12 @@ corpvalsign = list()
 corpvalsign[["100"]] = data.frame()
 corpvalsign[["200"]] = data.frame()
 corpvalsign[["300"]] = data.frame()
+corpvalsign[["400"]] = data.frame()
+corpvalsign[["500"]] = data.frame()
+corpvalsign[["750"]] = data.frame()
+corpvalsign[["1000"]] = data.frame()
+corpvalsign[["1500"]] = data.frame()
+corpvalsign[["2000"]] = data.frame()
 for (thres in names(corpvalsign)){
   for (i in 1:length(logFCunlisted)){
     for (j in i:length(logFCunlisted)){
@@ -226,6 +238,12 @@ coradjpvalsign = list()
 coradjpvalsign[["100"]] = data.frame()
 coradjpvalsign[["200"]] = data.frame()
 coradjpvalsign[["300"]] = data.frame()
+coradjpvalsign[["400"]] = data.frame()
+coradjpvalsign[["500"]] = data.frame()
+coradjpvalsign[["750"]] = data.frame()
+coradjpvalsign[["1000"]] = data.frame()
+coradjpvalsign[["1500"]] = data.frame()
+coradjpvalsign[["2000"]] = data.frame()
 coradjpvalsign[["all"]] = data.frame()
 for (thres in names(corpvalsign)){
   vec = as.vector(corpvalsign[[thres]][upper.tri(corpvalsign[[thres]], diag = F)])
