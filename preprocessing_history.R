@@ -3981,6 +3981,7 @@ filteredphenodata$Age = sub("[^[:digit:]]*$", "", filteredphenodata$Age)
 colnames(filteredexprdata) = sub("_.*_.*_.*$", "", colnames(filteredexprdata))
 
 filteredphenodata1 = filteredphenodata
+filteredexprdata3 = filteredexprdata
 # FILTER CONTROL REGEX (filter out noncontrol groups in phenodata)
 filteredphenodata1 = subset(filteredphenodata1, subset = grepl('.*mRNA.*', filteredphenodata1$title))
 
@@ -4095,7 +4096,7 @@ save(logFClist, file = "logFClist.RData")
 # analyze brain:
 filteredphenodata = subset(filteredphenodata1, source_name_ch1 == "brain")
 
-filteredexprdata = filteredexprdata[, rownames(filteredphenodata)]
+filteredexprdata = filteredexprdata3[, rownames(filteredphenodata)]
 filteredexprdata = na.omit(filteredexprdata)
 
 # LOG2 (logarithmize if needed)
@@ -4106,6 +4107,17 @@ visualstack = stack(logdata)
 ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
 # save it:
 target[["Raw_density"]] <- ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+# SMASH IT
+# (if there is one, filter it out)
+filteredexprdata$rowsum = rowSums(filteredexprdata > 10) # take only genes having more than
+#                                                                10 reads...
+filteredexprdata1 = filteredexprdata[filteredexprdata$rowsum > 2,] # ...in at least
+#                                                  one third of samples (here it is 3 samples)
+filteredexprdata = subset(filteredexprdata1, select = -c(rowsum))
+logdata = log2(filteredexprdata + 1)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
 
 # CONVERT TRANSCRIPTS
 source("FUN.Ensembl_rat_dictionary_create_for_trans.R") #if rat or human, use the corresponding function
