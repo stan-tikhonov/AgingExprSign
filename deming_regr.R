@@ -3,6 +3,7 @@
 library(biomaRt)
 library(tidyverse)
 
+
 # create entrez mappings between mouse and rat, and mouse and human
 
 # default:
@@ -194,6 +195,7 @@ for (colname in colnames(cormatrixsign)){
 ##### applying Deming regression:
 
 for (el in logFCunlisted){ 
+  el$SE = el$SE / sd(el$logFC)
   el$logFC = el$logFC / sd(el$logFC)
 }
 
@@ -204,7 +206,7 @@ fn = function(k){
       if (cortestsign[names(logFCunlisted)[i], names(logFCunlisted)[j]] != 1){
         next
       }
-      if (i = j){
+      if (i == j){
         next
         }
       topA = logFCunlisted[[i]] %>% rownames_to_column(var = "row.names")
@@ -213,7 +215,13 @@ fn = function(k){
       topB = logFCunlisted[[j]] %>% rownames_to_column(var = "row.names")
       topB = topB %>% top_n(-1 * as.integer(as.character(thres)), adj.P.Val)
       topB = topB %>% column_to_rownames(var = "row.names")
-      totalrownames = setdiff(union(rownames(topA), rownames(topB)), badboys)
+      totalrownames = union(rownames(topA), rownames(topB))
+      tempdata = matrix(nrow = length(totalrownames), ncol = 2)
+      rownames(tempdata) = totalrownames
+      tempdata[, 1] = logFCunlisted[[i]][totalrownames,]$logFC
+      tempdata[, 2] = logFCunlisted[[j]][totalrownames,]$logFC
+      tempdata = na.omit(tempdata)
+      totalrownames = rownames(tempdata)
       res = res + sum(
         (((logFCunlisted[[j]][totalrownames,]$logFC - (k[j]/k[i])*logFCunlisted[[i]][totalrownames,]$logFC)^2)*((logFCunlisted[[i]][totalrownames,]$logFC - (k[i]/k[j])*logFCunlisted[[j]][totalrownames,]$logFC)^2))/
           (((logFCunlisted[[j]][totalrownames,]$logFC - (k[j]/k[i])*logFCunlisted[[i]][totalrownames,]$logFC)^2)+((logFCunlisted[[i]][totalrownames,]$logFC - (k[i]/k[j])*logFCunlisted[[j]][totalrownames,]$logFC)^2)))/length(totalrownames)
@@ -222,7 +230,7 @@ fn = function(k){
   return(res)
 }
 
-optres = optim(rnorm(length(logFCunlisted),0,1), fn)
+optimized = optim(rnorm(length(logFCunlisted),1,1), fn)
 
 
 
