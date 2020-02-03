@@ -2,7 +2,10 @@
 
 library(biomaRt)
 library(tidyverse)
-
+library(deming)
+library(reshape2)
+library(sgd)
+library(metafor)
 
 # create entrez mappings between mouse and rat, and mouse and human
 
@@ -56,6 +59,8 @@ mouse_human_entrez_map = na.omit(Mouse_to_human_orthologs1)
 mouse_human_entrez_map = as.data.frame(mouse_human_entrez_map)
 mouse_human_entrez_map = mouse_human_entrez_map %>% mutate_all(as.character)
 
+
+
 #correlation matrix and heatmap
 logFCmatrix = logFClist$Mouse$GSE6591$Lung$Male$DBA2J["logFC"]
 logFCmatrix = logFCmatrix %>% rename(Mouse_GSE6581_Lung_Male_DBA2J = logFC)
@@ -65,6 +70,11 @@ logFCmatrix = logFCmatrix %>% rename(Mouse_GSE6581_Lung_Male_C57BL6J = logFC)
 logFClist1 = logFClist
 logFClist1$Mouse$GSE6591 = NULL
 totalrownames = rownames(logFCmatrix)
+
+#remove bad datasets:
+logFClist1$Mouse$GSE53959 = NULL
+logFClist1$Human$GSE40645 = NULL
+logFClist1$Human$GSE5086 = NULL
 
 #correct version :)
 #j = 1
@@ -169,7 +179,7 @@ for (i in 1:length(logFCunlisted)){
 coradjpvalsign = data.frame()
 vec = as.vector(corpvalsign[upper.tri(corpvalsign, diag = F)])
 vec = p.adjust(vec, method = "BH")
-tempmatrix = matrix(0, 63, 63)
+tempmatrix = matrix(0, 58, 58)
 tempmatrix[lower.tri(tempmatrix, diag = F)] = vec
 tempmatrix = t(tempmatrix)
 tempmatrix[lower.tri(tempmatrix, diag = F)] = t(tempmatrix)[lower.tri(t(tempmatrix), diag = F)]
@@ -181,16 +191,55 @@ cortestsign = data.frame()
 for (colname in colnames(cormatrixsign)){
   for (rowname in rownames(cormatrixsign)){
     if (coradjpvalsign[rowname, colname] < 0.05){
-      if (cormatrixsign[rowname, colname] > 0){
+      if (cormatrixsign[rowname, colname] > 0.05){
         cortestsign[rowname, colname] = 1
-      } else {
+      } else if (cormatrixsign[rowname, colname] < -0.05){
         cortestsign[rowname, colname] = -1
-      } 
+      } else {
+        cortestsign[rowname, colname] = 0
+      }
     } else{
       cortestsign[rowname, colname] = 0
     }
   }
 }
+
+# stacked barplot showing how many ones and minus ones are there for each data point (as proportions), and then names of bad data points: 
+new.df<-melt(cortestsign)
+new.df<-new.df[complete.cases(new.df),]
+new.df$Score<-factor(new.df$value, levels = c("1", "-1", "0"))
+new.df = new.df %>% filter(Score != 0)
+ggplot(new.df, aes(x=variable, fill=Score)) + geom_bar(aes(y = (..count..)/58))
+
+anothadf = cortestsign
+anothadf$ones = rowSums(anothadf == 1)
+anothadf$minusones = rowSums(anothadf == -1)
+rownames(anothadf)[which(anothadf$ones <= anothadf$minusones)]
+# density plot of number of ones across datasets:
+ggplot(anothadf, aes(x = ones)) + geom_density()
+# based on the visually established threshold, filter these bitches out:
+rownames(anothadf)[which(anothadf$ones <= 6)]
+
+
+##### heatmap, looking for bad datasets:
+# Reorder the correlation matrix
+cormatrix_2 <- reorder_cormat(cormatrixsign,method="average")
+cormatrix_2 = apply(cormatrix_2, 2, rev)
+upper_tri <- get_upper_tri(cormatrix_2)
+# Melt the correlation matrix
+#melted_cormat <- melt(upper_tri, na.rm = TRUE)
+melted_cormat <- melt(cormatrix_2, na.rm = TRUE)
+# Create a ggheatmap
+ggheatmap <- ggplot(melted_cormat, aes(Var2, Var1, fill = value))+
+  geom_tile(color = "white")+
+  scale_fill_gradient2(low = "blue4", high = "red4", mid = "white", 
+                       midpoint = 0, limit = c(-0.8,0.8), space = "Lab", 
+                       name="Spearman\nCorrelation") +
+  theme_minimal()+ # minimal theme
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+                                   size = 12, hjust = 1))+
+  coord_fixed()
+ggheatmap
 
 ##### applying Deming regression:
 
@@ -201,14 +250,13 @@ for (el in logFCunlisted){
 
 fn = function(k){
   res = 0
-  for (i in 1:(length(logFCunlisted)-1)){
-    for (j in (i + 1):length(logFCunlisted)){
+#  for (i in 1:(length(logFCunlisted)-1)){
+#    for (j in (i + 1):length(logFCunlisted)){
+  for (i in 1:5){
+    for (j in (i + 1):6){
       if (cortestsign[names(logFCunlisted)[i], names(logFCunlisted)[j]] != 1){
         next
       }
-      if (i == j){
-        next
-        }
       topA = logFCunlisted[[i]] %>% rownames_to_column(var = "row.names")
       topA = topA %>% top_n(-1 * as.integer(as.character(thres)), adj.P.Val)
       topA = topA %>% column_to_rownames(var = "row.names")
@@ -230,10 +278,104 @@ fn = function(k){
   return(res)
 }
 
-optimized = optim(rnorm(length(logFCunlisted),1,1), fn)
+#optimized = optim(rnorm(length(logFCunlisted),1,1), fn)
+ptm <- proc.time()
+optimized = optim(rnorm(6,1,1), fn)
+proc.time() - ptm
+
+# compare to deming:
+
+dem_coefs <- c()
+for (i in 1:5){
+  for (j in (i + 1):6){
+    if (cortestsign[names(logFCunlisted)[i], names(logFCunlisted)[j]] != 1){
+      next
+    }
+    topA = logFCunlisted[[i]] %>% rownames_to_column(var = "row.names")
+    topA = topA %>% top_n(-1 * as.integer(as.character(thres)), adj.P.Val)
+    topA = topA %>% column_to_rownames(var = "row.names")
+    topB = logFCunlisted[[j]] %>% rownames_to_column(var = "row.names")
+    topB = topB %>% top_n(-1 * as.integer(as.character(thres)), adj.P.Val)
+    topB = topB %>% column_to_rownames(var = "row.names")
+    totalrownames = union(rownames(topA), rownames(topB))
+    tempdata = matrix(nrow = length(totalrownames), ncol = 2)
+    rownames(tempdata) = totalrownames
+    tempdata[, 1] = logFCunlisted[[i]][totalrownames,]$logFC
+    tempdata[, 2] = logFCunlisted[[j]][totalrownames,]$logFC
+    tempdata = na.omit(tempdata)
+    totalrownames = rownames(tempdata)
+    plot1 = deming(logFCunlisted[[j]][totalrownames,]$logFC ~ logFCunlisted[[i]][totalrownames,]$logFC - 1)
+    dem_coefs <- c(dem_coefs,plot1$coefficients[2])
+    plot(logFCunlisted[[i]][totalrownames,]$logFC, logFCunlisted[[j]][totalrownames,]$logFC, main = paste0("Correlation: ", as.character(cormatrixsign[names(logFCunlisted)[i], names(logFCunlisted)[j]]), ", p-value: ", as.character(coradjpvalsign[names(logFCunlisted)[i], names(logFCunlisted)[j]])))
+    abline(0, plot1$coefficients[2], col = "blue", lwd = 2)
+    abline(0, optimized$par[j]/optimized$par[i], col = "red", lwd = 2)
+    abline(v = 0)
+    abline(h = 0)
+    plot3 = lm(logFCunlisted[[j]][totalrownames,]$logFC ~ logFCunlisted[[i]][totalrownames,]$logFC - 1)
+    plot27 = lm(logFCunlisted[[i]][totalrownames,]$logFC ~ logFCunlisted[[j]][totalrownames,]$logFC - 1)
+    abline(0, plot3$coef, col = "green", lwd = 2)
+    abline(0, 1/plot27$coef, col = "darkgreen", lwd = 2)
+  }
+}
+
+# normalize:
+
+optimcoefs = optimized$par / optimized$par[1]
+
+for (i in 1:length(logFCunlisted)){ 
+  logFCunlisted[[i]]$SE = logFCunlisted[[i]]$SE / optimcoefs[i]
+  logFCunlisted[[i]]$logFC = logFCunlisted[[i]]$logFC / optimcoefs[i]
+}
+
+# discard bad boys:
+for (el in logFCunlisted){
+  for (i in 1:length(rownames(el))){
+    if (rownames(el)[i] %in% badboys){
+      el = el[-i,]
+    }
+  }
+}
+
+# run mixed-effect model:
+
+sourcedata = as.data.frame(names(logFCunlisted))
+rownames(sourcedata) = names(logFCunlisted)
+colnames(sourcedata) = "kekkekkek"
+sourcedata = sourcedata %>% separate(kekkekkek, c(NA, "dataset", NA), sep = "_")
+
+totalgenes = c()
+for (el in logFCunlisted){
+  totalgenes = union(totalgenes, rownames(el))
+}
+for (genename in totalgenes){
+  logFC = c()
+  SE = c()
+  for (el in logFCunlisted){
+    if (genename %in% rownames(el)){
+      logFC = c(logFC, el$logFC[which(rownames(el) == genename)])
+      SE = c(SE, el$SE[which(rownames(el) == genename)])
+    }
+  }
+  rma.uni(yi = logFC, sei = SE, mods = ~ 1, method = "REML")
+}
 
 
-
+for(i in 1:5){
+  for(j in (i+1):6){
+    plot1 = deming(logFCunlisted[[j]][] ~ d[[i]] - 1)
+    plot(d[[i]], d[[j]], xlim = c(-1, 1), ylim = c(-1, 1))
+    plot(d[[i]], d[[j]])
+    abline(0, plot1$coefficients[2], col = "blue", lwd = 2)
+    abline(0, plot2$par[j]/plot2$par[i], col = "red", lwd = 2)
+    abline(v = 0)
+    abline(h = 0)
+    plot3 = lm(d[[j]] ~ d[[i]] - 1)
+    plot27 = lm(d[[i]] ~ d[[j]] - 1)
+    #abline(0, plot3$coef, col = "green", lwd = 2)
+    #abline(0, 1/plot27$coef, col = "darkgreen", lwd = 2)
+    dem_coefs <- c(dem_coefs,plot1$coefficients[2])
+  }
+}
 
 
 
