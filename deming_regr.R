@@ -248,39 +248,48 @@ for (el in logFCunlisted){
   el$logFC = el$logFC / sd(el$logFC)
 }
 
+#totalrownamematrix = matrix(nrow = length(logFCunlisted), ncol = length(logFCunlisted))
+totalrownamematrix = list()
+for (i in 1:(length(logFCunlisted)-1)){
+  for (j in (i + 1):length(logFCunlisted)){
+    topA = logFCunlisted[[i]] %>% rownames_to_column(var = "row.names")
+    topA = topA %>% top_n(-1 * as.integer(as.character(thres)), adj.P.Val)
+    topA = topA %>% column_to_rownames(var = "row.names")
+    topB = logFCunlisted[[j]] %>% rownames_to_column(var = "row.names")
+    topB = topB %>% top_n(-1 * as.integer(as.character(thres)), adj.P.Val)
+    topB = topB %>% column_to_rownames(var = "row.names")
+    totalrownames = union(rownames(topA), rownames(topB))
+    tempdata = matrix(nrow = length(totalrownames), ncol = 2)
+    rownames(tempdata) = totalrownames
+    tempdata[, 1] = logFCunlisted[[i]][totalrownames,]$logFC
+    tempdata[, 2] = logFCunlisted[[j]][totalrownames,]$logFC
+    tempdata = na.omit(tempdata)
+    totalrownames = rownames(tempdata)
+    totalrownamematrix[[names(logFCunlisted)[i]]][[names(logFCunlisted)[j]]] = totalrownames
+  }
+}
+
 fn = function(k){
   res = 0
-#  for (i in 1:(length(logFCunlisted)-1)){
-#    for (j in (i + 1):length(logFCunlisted)){
-  for (i in 1:5){
-    for (j in (i + 1):6){
-      if (cortestsign[names(logFCunlisted)[i], names(logFCunlisted)[j]] != 1){
+  for (i in 1:(length(logFCunlisted)-1)){
+    namei = names(logFCunlisted)[i]
+    for (j in (i + 1):length(logFCunlisted)){
+      namej = names(logFCunlisted)[j]
+      if (cortestsign[namei, namej] != 1){
         next
       }
-      topA = logFCunlisted[[i]] %>% rownames_to_column(var = "row.names")
-      topA = topA %>% top_n(-1 * as.integer(as.character(thres)), adj.P.Val)
-      topA = topA %>% column_to_rownames(var = "row.names")
-      topB = logFCunlisted[[j]] %>% rownames_to_column(var = "row.names")
-      topB = topB %>% top_n(-1 * as.integer(as.character(thres)), adj.P.Val)
-      topB = topB %>% column_to_rownames(var = "row.names")
-      totalrownames = union(rownames(topA), rownames(topB))
-      tempdata = matrix(nrow = length(totalrownames), ncol = 2)
-      rownames(tempdata) = totalrownames
-      tempdata[, 1] = logFCunlisted[[i]][totalrownames,]$logFC
-      tempdata[, 2] = logFCunlisted[[j]][totalrownames,]$logFC
-      tempdata = na.omit(tempdata)
-      totalrownames = rownames(tempdata)
+      totalrownames = totalrownamematrix[[namei]][[namej]]
+      ai = logFCunlisted[[i]][totalrownames,]$logFC
+      aj = logFCunlisted[[j]][totalrownames,]$logFC
       res = res + sum(
-        (((logFCunlisted[[j]][totalrownames,]$logFC - (k[j]/k[i])*logFCunlisted[[i]][totalrownames,]$logFC)^2)*((logFCunlisted[[i]][totalrownames,]$logFC - (k[i]/k[j])*logFCunlisted[[j]][totalrownames,]$logFC)^2))/
-          (((logFCunlisted[[j]][totalrownames,]$logFC - (k[j]/k[i])*logFCunlisted[[i]][totalrownames,]$logFC)^2)+((logFCunlisted[[i]][totalrownames,]$logFC - (k[i]/k[j])*logFCunlisted[[j]][totalrownames,]$logFC)^2)))/length(totalrownames)
+        (((aj - (k[j]/k[i])*ai)^2)*((ai - (k[i]/k[j])*aj)^2))/
+          (((aj - (k[j]/k[i])*ai)^2)+((ai - (k[i]/k[j])*aj)^2)))/length(totalrownames)
     }
   }
   return(res)
 }
-
-#optimized = optim(rnorm(length(logFCunlisted),1,1), fn)
 ptm <- proc.time()
-optimized = optim(rnorm(6,1,1), fn)
+optimized = optim(rnorm(length(logFCunlisted),1,1), fn)
 proc.time() - ptm
 
 # compare to deming:
