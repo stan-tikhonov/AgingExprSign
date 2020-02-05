@@ -29,6 +29,7 @@ rat = useEnsembl("ensembl","rnorvegicus_gene_ensembl", host = "uswest.ensembl.or
 human = useEnsembl("ensembl", "hsapiens_gene_ensembl", host = "uswest.ensembl.org")
 mouse = useEnsembl("ensembl","mmusculus_gene_ensembl", host = "uswest.ensembl.org")
 
+
 Rat_to_mouse_orthologs <- getLDS(attributes=c("entrezgene_id"),
                                  mart=rat_dataset,attributesL=c("entrezgene_id"), martL=mouse_dataset)
 colnames(Rat_to_mouse_orthologs) <- c("Rat_Entrez","Mouse_Entrez")
@@ -152,6 +153,7 @@ badboys = subset(rownames(logFCmatrix), logFCmatrix$NACount >=35)
 
 ##### assembling the cortestsign matrix
 
+cormethod = "spearman"
 corpvalsign = data.frame()
 cormatrixsign = data.frame()
 thres = "750"
@@ -164,10 +166,10 @@ for (i in 1:length(logFCunlisted)){
     topB = topB %>% top_n(-1 * as.integer(as.character(thres)), adj.P.Val)
     topB = topB %>% column_to_rownames(var = "row.names")
     totalrownames = union(rownames(topA), rownames(topB))
-    cormatrixsign[names(logFCunlisted)[i], names(logFCunlisted)[j]] = cor(logFCunlisted[[i]][totalrownames,]$logFC, logFCunlisted[[j]][totalrownames,]$logFC, method = "spearman", use = "complete.obs")
-    cormatrixsign[names(logFCunlisted)[j], names(logFCunlisted)[i]] = cor(logFCunlisted[[i]][totalrownames,]$logFC, logFCunlisted[[j]][totalrownames,]$logFC, method = "spearman", use = "complete.obs")
-    corpvalsign[names(logFCunlisted)[i], names(logFCunlisted)[j]] = as.numeric(cor.test(logFCunlisted[[i]][totalrownames,]$logFC, logFCunlisted[[j]][totalrownames,]$logFC, method = "spearman")$p.value)
-    corpvalsign[names(logFCunlisted)[j], names(logFCunlisted)[i]] = as.numeric(cor.test(logFCunlisted[[i]][totalrownames,]$logFC, logFCunlisted[[j]][totalrownames,]$logFC, method = "spearman")$p.value)
+    cormatrixsign[names(logFCunlisted)[i], names(logFCunlisted)[j]] = cor(logFCunlisted[[i]][totalrownames,]$logFC, logFCunlisted[[j]][totalrownames,]$logFC, method = cormethod, use = "complete.obs")
+    cormatrixsign[names(logFCunlisted)[j], names(logFCunlisted)[i]] = cor(logFCunlisted[[i]][totalrownames,]$logFC, logFCunlisted[[j]][totalrownames,]$logFC, method = cormethod, use = "complete.obs")
+    corpvalsign[names(logFCunlisted)[i], names(logFCunlisted)[j]] = as.numeric(cor.test(logFCunlisted[[i]][totalrownames,]$logFC, logFCunlisted[[j]][totalrownames,]$logFC, method = cormethod)$p.value)
+    corpvalsign[names(logFCunlisted)[j], names(logFCunlisted)[i]] = as.numeric(cor.test(logFCunlisted[[i]][totalrownames,]$logFC, logFCunlisted[[j]][totalrownames,]$logFC, method = cormethod)$p.value)
     #    mergedmatrix = logFCunlisted[[i]]["logFC"]
     #    mergedmatrix = mergedmatrix %>% dplyr::rename(logFCi = logFC)
     #    mergedmatrix = merge(mergedmatrix, logFCunlisted[[j]]["logFC"], by=0, all=TRUE)
@@ -191,9 +193,9 @@ cortestsign = data.frame()
 for (colname in colnames(cormatrixsign)){
   for (rowname in rownames(cormatrixsign)){
     if (coradjpvalsign[rowname, colname] < 0.05){
-      if (cormatrixsign[rowname, colname] > 0.05){
+      if (cormatrixsign[rowname, colname] > 0.2){
         cortestsign[rowname, colname] = 1
-      } else if (cormatrixsign[rowname, colname] < -0.05){
+      } else if (cormatrixsign[rowname, colname] < -0.2){
         cortestsign[rowname, colname] = -1
       } else {
         cortestsign[rowname, colname] = 0
@@ -218,7 +220,7 @@ rownames(anothadf)[which(anothadf$ones <= anothadf$minusones)]
 # density plot of number of ones across datasets:
 ggplot(anothadf, aes(x = ones)) + geom_density()
 # based on the visually established threshold, filter these bitches out:
-rownames(anothadf)[which(anothadf$ones <= 6)]
+rownames(anothadf)[which(anothadf$ones <= 10)]
 
 
 ##### heatmap, looking for bad datasets:
@@ -269,34 +271,46 @@ for (i in 1:(length(logFCunlisted)-1)){
   }
 }
 
-fn = function(k){
-  res = 0
-  for (i in 1:(length(logFCunlisted)-1)){
-    namei = names(logFCunlisted)[i]
-    for (j in (i + 1):length(logFCunlisted)){
-      namej = names(logFCunlisted)[j]
-      if (cortestsign[namei, namej] != 1){
-        next
+  fn = function(k_no_first){
+    k = c()
+    k[1] = 1
+    k[2:length(logFCunlisted)] = k_no_first
+  #  k[2:10] = k_no_first
+    res = 0
+    for (i in 1:(length(logFCunlisted)-1)){
+  #  for (i in 1:9){
+      namei = names(logFCunlisted)[i]
+      for (j in (i + 1):length(logFCunlisted)){
+  #    for (j in (i + 1):10){
+        namej = names(logFCunlisted)[j]
+        if (cortestsign[namei, namej] != 1){
+          next
+        }
+        totalrownames = totalrownamematrix[[namei]][[namej]]
+        ai = logFCunlisted[[i]][totalrownames,]$logFC
+        aj = logFCunlisted[[j]][totalrownames,]$logFC
+        res = res + sum(
+          (((aj - (k[j]/k[i])*ai)^2)*((ai - (k[i]/k[j])*aj)^2))/
+            (((aj - (k[j]/k[i])*ai)^2)+((ai - (k[i]/k[j])*aj)^2)))/length(totalrownames)
       }
-      totalrownames = totalrownamematrix[[namei]][[namej]]
-      ai = logFCunlisted[[i]][totalrownames,]$logFC
-      aj = logFCunlisted[[j]][totalrownames,]$logFC
-      res = res + sum(
-        (((aj - (k[j]/k[i])*ai)^2)*((ai - (k[i]/k[j])*aj)^2))/
-          (((aj - (k[j]/k[i])*ai)^2)+((ai - (k[i]/k[j])*aj)^2)))/length(totalrownames)
     }
+    return(res)
   }
-  return(res)
-}
-ptm <- proc.time()
-optimized = optim(rnorm(length(logFCunlisted),1,1), fn)
-proc.time() - ptm
+  kvec = rnorm(length(logFCunlisted) - 1, 1, 1)
+  #kvec = rnorm(9, 1, 1)
+  ptm <- proc.time()
+  optimized = optim(kvec, fn, lower = 0.01, upper = 100, method = "L-BFGS-B")
+  proc.time() - ptm
+
+kres = c(1, optimized$par)
+
+
 
 # compare to deming:
 
 dem_coefs <- c()
-for (i in 1:5){
-  for (j in (i + 1):6){
+for (i in 1:9){
+  for (j in (i + 1):10){
     if (cortestsign[names(logFCunlisted)[i], names(logFCunlisted)[j]] != 1){
       next
     }
@@ -317,7 +331,7 @@ for (i in 1:5){
     dem_coefs <- c(dem_coefs,plot1$coefficients[2])
     plot(logFCunlisted[[i]][totalrownames,]$logFC, logFCunlisted[[j]][totalrownames,]$logFC, main = paste0("Correlation: ", as.character(cormatrixsign[names(logFCunlisted)[i], names(logFCunlisted)[j]]), ", p-value: ", as.character(coradjpvalsign[names(logFCunlisted)[i], names(logFCunlisted)[j]])))
     abline(0, plot1$coefficients[2], col = "blue", lwd = 2)
-    abline(0, optimized$par[j]/optimized$par[i], col = "red", lwd = 2)
+    abline(0, kres[j]/kres[i], col = "red", lwd = 2)
     abline(v = 0)
     abline(h = 0)
     plot3 = lm(logFCunlisted[[j]][totalrownames,]$logFC ~ logFCunlisted[[i]][totalrownames,]$logFC - 1)
@@ -365,7 +379,8 @@ for (genename in totalgenes){
       SE = c(SE, el$SE[which(rownames(el) == genename)])
     }
   }
-  rma.uni(yi = logFC, sei = SE, mods = ~ 1, method = "REML")
+  mixedeffres = rma.mv(yi = logFC, V = SE, mods = ~ 1, method = "REML", random = list(~ 1 | as.factor(sourcedata$dataset)))
+  
 }
 
 
