@@ -153,7 +153,7 @@ badboys = subset(rownames(logFCmatrix), logFCmatrix$NACount >=35)
 
 ##### assembling the cortestsign matrix
 
-cormethod = "spearman"
+cormethod = "pearson"
 corpvalsign = data.frame()
 cormatrixsign = data.frame()
 thres = "750"
@@ -193,9 +193,9 @@ cortestsign = data.frame()
 for (colname in colnames(cormatrixsign)){
   for (rowname in rownames(cormatrixsign)){
     if (coradjpvalsign[rowname, colname] < 0.05){
-      if (cormatrixsign[rowname, colname] > 0.2){
+      if (cormatrixsign[rowname, colname] > 0.1){
         cortestsign[rowname, colname] = 1
-      } else if (cormatrixsign[rowname, colname] < -0.2){
+      } else if (cormatrixsign[rowname, colname] < -0.1){
         cortestsign[rowname, colname] = -1
       } else {
         cortestsign[rowname, colname] = 0
@@ -220,7 +220,7 @@ rownames(anothadf)[which(anothadf$ones <= anothadf$minusones)]
 # density plot of number of ones across datasets:
 ggplot(anothadf, aes(x = ones)) + geom_density()
 # based on the visually established threshold, filter these bitches out:
-rownames(anothadf)[which(anothadf$ones <= 10)]
+rownames(anothadf)[which(anothadf$ones <= anothadf$minusones)]
 
 
 ##### heatmap, looking for bad datasets:
@@ -245,9 +245,9 @@ ggheatmap
 
 ##### applying Deming regression:
 
-for (el in logFCunlisted){ 
-  el$SE = el$SE / sd(el$logFC)
-  el$logFC = el$logFC / sd(el$logFC)
+for (i in 1:length(logFCunlisted)){ 
+  logFCunlisted[[i]]$SE = logFCunlisted[[i]]$SE / sd(logFCunlisted[[i]]$logFC)
+  logFCunlisted[[i]]$logFC = logFCunlisted[[i]]$logFC / sd(logFCunlisted[[i]]$logFC)
 }
 
 #totalrownamematrix = matrix(nrow = length(logFCunlisted), ncol = length(logFCunlisted))
@@ -271,36 +271,37 @@ for (i in 1:(length(logFCunlisted)-1)){
   }
 }
 
-  fn = function(k_no_first){
-    k = c()
-    k[1] = 1
-    k[2:length(logFCunlisted)] = k_no_first
-  #  k[2:10] = k_no_first
-    res = 0
-    for (i in 1:(length(logFCunlisted)-1)){
-  #  for (i in 1:9){
-      namei = names(logFCunlisted)[i]
-      for (j in (i + 1):length(logFCunlisted)){
-  #    for (j in (i + 1):10){
-        namej = names(logFCunlisted)[j]
-        if (cortestsign[namei, namej] != 1){
-          next
-        }
-        totalrownames = totalrownamematrix[[namei]][[namej]]
-        ai = logFCunlisted[[i]][totalrownames,]$logFC
-        aj = logFCunlisted[[j]][totalrownames,]$logFC
-        res = res + sum(
-          (((aj - (k[j]/k[i])*ai)^2)*((ai - (k[i]/k[j])*aj)^2))/
-            (((aj - (k[j]/k[i])*ai)^2)+((ai - (k[i]/k[j])*aj)^2)))/length(totalrownames)
+fn = function(k_no_first){
+  k = c()
+  k[1] = 1
+  k[2:length(logFCunlisted)] = k_no_first
+  #k[2:20] = k_no_first
+  res = 0
+  for (i in 1:(length(logFCunlisted)-1)){
+  #for (i in 1:19){
+    namei = names(logFCunlisted)[i]
+    for (j in (i + 1):length(logFCunlisted)){
+    #for (j in (i + 1):20){
+      namej = names(logFCunlisted)[j]
+      if (cortestsign[namei, namej] != 1){
+        next
       }
+      totalrownames = totalrownamematrix[[namei]][[namej]]
+      ai = logFCunlisted[[i]][totalrownames,]$logFC
+      aj = logFCunlisted[[j]][totalrownames,]$logFC
+      res = res + sum(
+        (((aj - (k[j]/k[i])*ai)^2)*((ai - (k[i]/k[j])*aj)^2))/
+          (((aj - (k[j]/k[i])*ai)^2)+((ai - (k[i]/k[j])*aj)^2)))/length(totalrownames)
     }
-    return(res)
   }
-  kvec = rnorm(length(logFCunlisted) - 1, 1, 1)
-  #kvec = rnorm(9, 1, 1)
-  ptm <- proc.time()
-  optimized = optim(kvec, fn, lower = 0.01, upper = 100, method = "L-BFGS-B")
-  proc.time() - ptm
+  return(res)
+}
+kvec = rnorm(length(logFCunlisted) - 1, 1, 1)
+#kvec = rnorm(19, 1, 1)
+ptm <- proc.time()
+#optimized = optim(kvec, fn)
+optimized = optim(kvec, fn, lower = 0.01, upper = 100, method = "L-BFGS-B", control = list(factr = 1e3))
+proc.time() - ptm
 
 kres = c(1, optimized$par)
 
@@ -309,8 +310,8 @@ kres = c(1, optimized$par)
 # compare to deming:
 
 dem_coefs <- c()
-for (i in 1:9){
-  for (j in (i + 1):10){
+for (i in 1:19){
+  for (j in (i + 1):20){
     if (cortestsign[names(logFCunlisted)[i], names(logFCunlisted)[j]] != 1){
       next
     }
@@ -343,18 +344,18 @@ for (i in 1:9){
 
 # normalize:
 
-optimcoefs = optimized$par / optimized$par[1]
+#optimcoefs = optimized$par / optimized$par[1]
 
 for (i in 1:length(logFCunlisted)){ 
-  logFCunlisted[[i]]$SE = logFCunlisted[[i]]$SE / optimcoefs[i]
-  logFCunlisted[[i]]$logFC = logFCunlisted[[i]]$logFC / optimcoefs[i]
+  logFCunlisted[[i]]$SE = logFCunlisted[[i]]$SE / kres[i]
+  logFCunlisted[[i]]$logFC = logFCunlisted[[i]]$logFC / kres[i]
 }
 
 # discard bad boys:
-for (el in logFCunlisted){
-  for (i in 1:length(rownames(el))){
-    if (rownames(el)[i] %in% badboys){
-      el = el[-i,]
+for (j in 1:length(logFCunlisted)){
+  for (i in 1:length(rownames(logFCunlisted[[j]]))){
+    if (rownames(logFCunlisted[[j]])[i] %in% badboys){
+      logFCunlisted[[j]] = logFCunlisted[[j]][-i,]
     }
   }
 }
@@ -367,21 +368,50 @@ colnames(sourcedata) = "kekkekkek"
 sourcedata = sourcedata %>% separate(kekkekkek, c(NA, "dataset", NA), sep = "_")
 
 totalgenes = c()
+signature = data.frame()
 for (el in logFCunlisted){
   totalgenes = union(totalgenes, rownames(el))
 }
 for (genename in totalgenes){
+  if (genename == "21945"){
+    next
+  }
   logFC = c()
   SE = c()
-  for (el in logFCunlisted){
-    if (genename %in% rownames(el)){
-      logFC = c(logFC, el$logFC[which(rownames(el) == genename)])
-      SE = c(SE, el$SE[which(rownames(el) == genename)])
+  datasetswiththegene = c()
+  for (i in 1:length(logFCunlisted)){
+    if (genename %in% rownames(logFCunlisted[[i]])){
+      logFC = c(logFC, logFCunlisted[[i]]$logFC[which(rownames(logFCunlisted[[i]]) == genename)])
+      SE = c(SE, logFCunlisted[[i]]$SE[which(rownames(logFCunlisted[[i]]) == genename)])
+      datasetswiththegene = c(datasetswiththegene, names(logFCunlisted)[i])
     }
   }
-  mixedeffres = rma.mv(yi = logFC, V = SE, mods = ~ 1, method = "REML", random = list(~ 1 | as.factor(sourcedata$dataset)))
-  
+  if (length(logFC) <= 1){
+    next
+  }
+  sourcevec = as.factor(sourcedata[which(rownames(sourcedata) %in% datasetswiththegene),])
+  mixedeffres = rma.mv(yi = logFC, V = SE, method = "REML", random = list(~ 1 | sourcevec))
+  signature = rbind(signature, c(mixedeffres$b[1], mixedeffres$pval))
 }
+rownames(signature) = totalgenes
+colnames(signature) = c("logFC", "pval")
+
+signature$pval = p.adjust(signature$pval, method = "BH")
+colnames(signature) = c("logFC", "adj_pval")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 for(i in 1:5){
