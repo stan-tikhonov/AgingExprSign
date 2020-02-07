@@ -372,10 +372,15 @@ signature = data.frame()
 for (el in logFCunlisted){
   totalgenes = union(totalgenes, rownames(el))
 }
+badgenes = c()
+genenumber = 0
 for (genename in totalgenes){
-  if (genename == "21945"){
-    next
-  }
+  genenumber = genenumber + 1
+  percentready = (genenumber/length(totalgenes)) * 100
+  print(paste0("I'm on gene No. ", genenumber, " (", round(percentready, 2), "% done)"))
+  #if (genename == "21945"){
+  #  next
+  #}
   logFC = c()
   SE = c()
   datasetswiththegene = c()
@@ -386,14 +391,33 @@ for (genename in totalgenes){
       datasetswiththegene = c(datasetswiththegene, names(logFCunlisted)[i])
     }
   }
-  if (length(logFC) <= 1){
+  #if (length(logFC) <= 1){
+  #  next
+  #}
+  sourcevec = as.factor(sourcedata[which(rownames(sourcedata) %in% datasetswiththegene),])
+  possibleerror <- tryCatch(
+    mixedeffres = rma.mv(yi = logFC, V = SE, method = "REML", random = list(~ 1 | sourcevec))
+    signature = rbind(signature, c(mixedeffres$b[1], mixedeffres$pval)),
+    error = function(cond) cond)
+    #,
+    #error=function(cond) {
+    #  message("Fucked up")
+    #  message("Here's the original error message:")
+    #  message(cond)
+      # Choose a return value in case of error
+    #}
+  
+  if (! inherits(possibleerror, "error")){
+    mixedeffres = rma.mv(yi = logFC, V = SE, method = "REML", random = list(~ 1 | sourcevec))
+    signature = rbind(signature, c(mixedeffres$b[1], mixedeffres$pval))
+  }
+  if (inherits(possibleerror, "error")) {
+    print("I'm inside!")
+    badgenes = c(badgenes, genename)
     next
   }
-  sourcevec = as.factor(sourcedata[which(rownames(sourcedata) %in% datasetswiththegene),])
-  mixedeffres = rma.mv(yi = logFC, V = SE, method = "REML", random = list(~ 1 | sourcevec))
-  signature = rbind(signature, c(mixedeffres$b[1], mixedeffres$pval))
 }
-rownames(signature) = totalgenes
+rownames(signature) = totalgenes[-which(totalgenes %in% badgenes)]
 colnames(signature) = c("logFC", "pval")
 
 signature$pval = p.adjust(signature$pval, method = "BH")
@@ -402,7 +426,14 @@ colnames(signature) = c("logFC", "adj_pval")
 
 
 
-
+tryCatch(
+  {
+    print("Eh")
+  },
+  error = function(cond){
+    print("kek")
+  }
+)
 
 
 
