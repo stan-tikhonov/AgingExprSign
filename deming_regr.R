@@ -274,14 +274,14 @@ for (i in 1:(length(logFCunlisted)-1)){
 fn = function(k_no_first){
   k = c()
   k[1] = 1
-  k[2:length(logFCunlisted)] = k_no_first
-  #k[2:20] = k_no_first
+  #k[2:length(logFCunlisted)] = k_no_first
+  k[2:10] = k_no_first
   res = 0
-  for (i in 1:(length(logFCunlisted)-1)){
-  #for (i in 1:19){
+  #for (i in 1:(length(logFCunlisted)-1)){
+  for (i in 1:9){
     namei = names(logFCunlisted)[i]
-    for (j in (i + 1):length(logFCunlisted)){
-    #for (j in (i + 1):20){
+    #for (j in (i + 1):length(logFCunlisted)){
+    for (j in (i + 1):10){
       namej = names(logFCunlisted)[j]
       if (cortestsign[namei, namej] != 1){
         next
@@ -296,8 +296,8 @@ fn = function(k_no_first){
   }
   return(res)
 }
-kvec = rnorm(length(logFCunlisted) - 1, 1, 1)
-#kvec = rnorm(19, 1, 1)
+#kvec = rnorm(length(logFCunlisted) - 1, 1, 1)
+kvec = rnorm(9, 1, 1)
 ptm <- proc.time()
 #optimized = optim(kvec, fn)
 optimized = optim(kvec, fn, lower = 0.01, upper = 100, method = "L-BFGS-B", control = list(factr = 1e3))
@@ -346,13 +346,15 @@ for (i in 1:19){
 
 #optimcoefs = optimized$par / optimized$par[1]
 
-for (i in 1:length(logFCunlisted)){ 
+#for (i in 1:length(logFCunlisted)){
+for (i in 1:10){
   logFCunlisted[[i]]$SE = logFCunlisted[[i]]$SE / kres[i]
   logFCunlisted[[i]]$logFC = logFCunlisted[[i]]$logFC / kres[i]
 }
 
 # discard bad boys:
-for (j in 1:length(logFCunlisted)){
+#for (j in 1:length(logFCunlisted)){
+for (j in 1:10){
   for (i in 1:length(rownames(logFCunlisted[[j]]))){
     if (rownames(logFCunlisted[[j]])[i] %in% badboys){
       logFCunlisted[[j]] = logFCunlisted[[j]][-i,]
@@ -395,27 +397,27 @@ for (genename in totalgenes){
   #  next
   #}
   sourcevec = as.factor(sourcedata[which(rownames(sourcedata) %in% datasetswiththegene),])
-  possibleerror <- tryCatch(
-    mixedeffres = rma.mv(yi = logFC, V = SE, method = "REML", random = list(~ 1 | sourcevec))
-    signature = rbind(signature, c(mixedeffres$b[1], mixedeffres$pval)),
-    error = function(cond) cond)
-    #,
-    #error=function(cond) {
-    #  message("Fucked up")
-    #  message("Here's the original error message:")
-    #  message(cond)
-      # Choose a return value in case of error
-    #}
-  
-  if (! inherits(possibleerror, "error")){
+  tryCatch({
     mixedeffres = rma.mv(yi = logFC, V = SE, method = "REML", random = list(~ 1 | sourcevec))
     signature = rbind(signature, c(mixedeffres$b[1], mixedeffres$pval))
-  }
-  if (inherits(possibleerror, "error")) {
-    print("I'm inside!")
-    badgenes = c(badgenes, genename)
-    next
-  }
+    },
+    error=function(cond) {
+      message("Fucked up")
+      message("Here's the original error message:")
+      message(cond)
+      # Choose a return value in case of error
+      badgenes = c(badgenes, genename)
+    })
+  
+  #if (! inherits(possibleerror, "error")){
+  #  mixedeffres = rma.mv(yi = logFC, V = SE, method = "REML", random = list(~ 1 | sourcevec))
+  #  signature = rbind(signature, c(mixedeffres$b[1], mixedeffres$pval))
+  #}
+  #if (inherits(possibleerror, "error")) {
+  #  print("I'm inside!")
+  #  badgenes = c(badgenes, genename)
+  #  next
+  #}
 }
 rownames(signature) = totalgenes[-which(totalgenes %in% badgenes)]
 colnames(signature) = c("logFC", "pval")
