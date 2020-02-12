@@ -131,6 +131,17 @@ for (species in names(logFClist1)){
 logFCmatrix = matrix(nrow = length(totalrownames), ncol = length(logFCunlisted))
 rownames(logFCmatrix) = totalrownames
 colnames(logFCmatrix) = names(logFCunlisted)
+
+SEmatrixregr = matrix(nrow = length(totalrownames), ncol = length(logFCunlisted))
+rownames(SEmatrixregr) = totalrownames
+colnames(SEmatrixregr) = names(logFCunlisted)
+
+for (name in names(logFCunlisted)){
+  logFCmatrix[rownames(logFCunlisted[[name]]), name] = logFCunlisted[[name]]$logFC
+  SEmatrixregr[rownames(logFCunlisted[[name]]), name] = logFCunlisted[[name]]$SE
+}
+
+# redundant shit:
 logFCmatrix[rownames(logFClist$Mouse$GSE6591$Lung$Male$DBA2J["logFC"]), "Mouse_GSE6591_Lung_Male_DBA2J"] = logFClist$Mouse$GSE6591$Lung$Male$DBA2J$logFC
 logFCmatrix[rownames(logFClist$Mouse$GSE6591$Lung$Male$C57BL6J["logFC"]), "Mouse_GSE6591_Lung_Male_C57BL6J"] = logFClist$Mouse$GSE6591$Lung$Male$C57BL6J$logFC
 logFClist1$Mouse$GSE6591 = NULL
@@ -143,8 +154,12 @@ for (species in names(logFClist1)){
     }
   }
 }
+# end of redundant shit
+
 logFCmatrix = as.data.frame(logFCmatrix)
+SEmatrixregr = as.data.frame(SEmatrixregr)
 logFCmatrixunfiltered = logFCmatrix
+
 # filter genes with lots of NAs (half of the number of columns or more)
 logFCmatrix$NACount = rowSums(is.na(logFCmatrix))
 ggplot(logFCmatrix, aes(x = NACount)) + geom_density()
@@ -250,6 +265,14 @@ for (i in 1:length(logFCunlisted)){
   logFCunlisted[[i]]$logFC = logFCunlisted[[i]]$logFC / sd(logFCunlisted[[i]]$logFC)
 }
 
+logFCmatrixregr = logFCmatrixunfiltered
+
+for (i in 1:length(colnames(logFCmatrixregr))){
+  SEmatrixregr[,i] = SEmatrixregr[,i] / sd(na.omit(logFCmatrixregr[,i]))
+  logFCmatrixregr[,i] = logFCmatrixregr[,i] / sd(na.omit(logFCmatrixregr[,i]))
+}
+
+
 #totalrownamematrix = matrix(nrow = length(logFCunlisted), ncol = length(logFCunlisted))
 totalrownamematrix = list()
 for (i in 1:(length(logFCunlisted)-1)){
@@ -269,6 +292,35 @@ for (i in 1:(length(logFCunlisted)-1)){
     totalrownames = rownames(tempdata)
     totalrownamematrix[[names(logFCunlisted)[i]]][[names(logFCunlisted)[j]]] = totalrownames
   }
+}
+
+fn = function(k_no_first){
+  k = c()
+  k[1] = 1
+  #k[2:length(colnames(logFCmatrixregr))] = k_no_first
+  k[2:10] = k_no_first
+  res = 0
+  #for (i in 1:(length(colnames(logFCmatrixregr))-1)){
+  for (i in 1:9){
+    namei = colnames(logFCmatrixregr)[i]
+    #for (j in (i + 1):length(colnames(logFCmatrixregr))){
+    for (j in (i + 1):10){
+      namej = colnames(logFCmatrixregr)[j]
+      if (cortestsign[namei, namej] != 1){
+        next
+      }
+      totalrownames = totalrownamematrix[[namei]][[namej]]
+      ai = logFCmatrixregr[totalrownames, namei]
+      print(sum(is.na(ai)))
+      aj = logFCmatrixregr[totalrownames, namej]
+      print(sum(is.na(aj)))
+      res = res + sum(
+        (((aj - (k[j]/k[i])*ai)^2)*((ai - (k[i]/k[j])*aj)^2))/
+          (((aj - (k[j]/k[i])*ai)^2)+((ai - (k[i]/k[j])*aj)^2)))/length(totalrownames)
+      print(res)
+    }
+  }
+  return(res)
 }
 
 fn = function(k_no_first){
