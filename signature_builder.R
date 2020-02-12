@@ -222,41 +222,22 @@ for (i in 1:(length(logFCunlisted)-1)){
   }
 }
 
-fn = function(k_no_first){
-  k = c()
-  k[1] = 1
-  k[2:length(colnames(logFCmatrixregr))] = k_no_first
-  #k[2:10] = k_no_first
-  res = 0
-  for (i in 1:(length(colnames(logFCmatrixregr))-1)){
-  #for (i in 1:9){
-    namei = colnames(logFCmatrixregr)[i]
-    for (j in (i + 1):length(colnames(logFCmatrixregr))){
-    #for (j in (i + 1):10){
-      namej = colnames(logFCmatrixregr)[j]
-      if (cortestsign[namei, namej] != 1){
-        next
-      }
-      totalrownames = totalrownamematrix[[namei]][[namej]]
-      ai = logFCmatrixregr[totalrownames, namei]
-      aj = logFCmatrixregr[totalrownames, namej]
-      res = res + sum(
-        (((aj - (k[j]/k[i])*ai)^2)*((ai - (k[i]/k[j])*aj)^2))/
-          (((aj - (k[j]/k[i])*ai)^2)+((ai - (k[i]/k[j])*aj)^2)))/length(totalrownames)
-    }
-  }
-  return(res)
+# get source table:
+sourcedata = as.data.frame(colnames(logFCmatrixregr))
+rownames(sourcedata) = colnames(logFCmatrixregr)
+colnames(sourcedata) = "kekkekkek"
+sourcedata = sourcedata %>% separate(kekkekkek, c(NA, "dataset", NA), sep = "_")
+
+
+# run deming minimization:
+source("FUN.Deming_minimizer.R")
+bigres = list()
+minimums = c()
+for (i in 1:10){
+  bigres[[i]] = deming_minimizer(logFCmatrixchosen)
+  minimums = c(minimums, bigres[[i]]$minimum)
 }
-
-kvec = rnorm(length(colnames(logFCmatrixregr)) - 1, 1, 1)
-#kvec = rnorm(9, 1, 1)
-ptm <- proc.time()
-#optimized = optim(kvec, fn)
-#optimized = optim(kvec, fn, lower = 0.01, upper = 100, method = "L-BFGS-B", control = list(factr = 1e3))
-optimized = optim(kvec, fn, lower = 0.01, upper = 100, method = "L-BFGS-B")
-proc.time() - ptm
-
-kres = c(1, optimized$par)
+kres = bigres[[which.min(minimums)]]$coefs
 
 # normalize by deming coefficients:
 
@@ -270,46 +251,10 @@ for (i in 1:length(colnames(logFCmatrixregr))){
 logFCmatrixregr = subset(logFCmatrixregr, rownames(logFCmatrixregr) %notin% badboys)
 SEmatrixregr = subset(SEmatrixregr, rownames(SEmatrixregr) %notin% badboys)
 
-# get source table:
-sourcedata = as.data.frame(colnames(logFCmatrixregr))
-rownames(sourcedata) = colnames(logFCmatrixregr)
-colnames(sourcedata) = "kekkekkek"
-sourcedata = sourcedata %>% separate(kekkekkek, c(NA, "dataset", NA), sep = "_")
-
 # run mixed-effect model:
 
-goodgenes = c()
-signature = data.frame()
-genenumber = 0
-for (genename in rownames(logFCmatrixregr)){
-  genenumber = genenumber + 1
-  percentready = (genenumber/length(rownames(logFCmatrixregr))) * 100
-  print(paste0("I'm on gene No. ", genenumber, " (", round(percentready, 2), "% done)"))
-  logFC = logFCmatrixregr[genename,]
-  logFC = logFC[!is.na(logFC)]
-  SE = SEmatrixregr[genename,]
-  SE = SE[!is.na(SE)]
-  sourcevec = as.factor(sourcedata[colnames(logFCmatrixregr)[!is.na(logFCmatrixregr[genename,])],])
-  
-  tryCatch(
-    {
-      mixedeffres = rma.mv(yi = logFC, V = SE^2, method = "REML", random = list(~ 1 | sourcevec))
-      signature = rbind(signature, c(mixedeffres$b[1], mixedeffres$pval))
-      goodgenes = c(goodgenes, genename)
-    },
-    error=function(cond) {
-      message("Fucked up")
-      message("Here's the original error message:")
-      message(cond)
-    }
-  )
-}
-#rownames(signature) = totalgenes[-which(totalgenes %in% badgenes)]
-rownames(signature) = goodgenes
-colnames(signature) = c("logFC", "pval")
-
-signature$pval = p.adjust(signature$pval, method = "BH")
-colnames(signature) = c("logFC", "adj_pval")
+source("FUN.Signature_builder.R")
+signature = signature_builder(logFCmatrixchosen)
 
 # correlation heatmap
 
