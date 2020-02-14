@@ -65,6 +65,8 @@ logFClist1 = logFClist
 logFClist1$Mouse$GSE53959 = NULL
 logFClist1$Human$GSE40645 = NULL
 logFClist1$Human$GSE5086 = NULL
+logFClist1$Mouse$`E-MTAB-3374` = NULL
+logFClist1$Human$GSE9103 = NULL
 
 # convert to orthologs and make totalrownames:
 totalrownames = union(rownames(logFClist$Mouse$GSE6591$Lung$Male$DBA2J), rownames(logFClist$Mouse$GSE6591$Lung$Male$C57BL6J))
@@ -228,9 +230,15 @@ rownames(sourcedata) = colnames(logFCmatrixregr)
 colnames(sourcedata) = "kekkekkek"
 sourcedata = sourcedata %>% separate(kekkekkek, c(NA, "dataset", NA), sep = "_")
 
+logFCmatrixchosen = logFCmatrixregr
+SEmatrixchosen = SEmatrixregr
+
+##### THIS IS FOR THE COMPLETE SIGNATURE (10 MINIMIZATION RUNS)
 
 # run deming minimization:
 source("FUN.Deming_minimizer.R")
+
+# running it 10 times:
 bigres = list()
 minimums = c()
 for (i in 1:10){
@@ -241,20 +249,201 @@ kres = bigres[[which.min(minimums)]]$coefs
 
 # normalize by deming coefficients:
 
-for (i in 1:length(colnames(logFCmatrixregr))){
-  SEmatrixregr[,i] = SEmatrixregr[,i] / kres[i]
-  logFCmatrixregr[,i] = logFCmatrixregr[,i] / kres[i]
+for (i in 1:length(colnames(logFCmatrixchosen))){
+  SEmatrixchosen[,i] = SEmatrixchosen[,i] / kres[i]
+  logFCmatrixchosen[,i] = logFCmatrixchosen[,i] / kres[i]
 }
 
 # discard bad boys:
 '%notin%' = Negate('%in%')
-logFCmatrixregr = subset(logFCmatrixregr, rownames(logFCmatrixregr) %notin% badboys)
-SEmatrixregr = subset(SEmatrixregr, rownames(SEmatrixregr) %notin% badboys)
+logFCmatrixshosen = subset(logFCmatrixchosen, rownames(logFCmatrixchosen) %notin% badboys)
+SEmatrixchosen = subset(SEmatrixchosen, rownames(SEmatrixchosen) %notin% badboys)
 
 # run mixed-effect model:
 
 source("FUN.Signature_builder.R")
 signature = signature_builder(logFCmatrixchosen)
+
+
+
+##### constructing category table:
+categorytable = matrix(nrow = 6, ncol = 4)
+rownames(categorytable) = c("Brain", "Liver", "Heart", "Kidney", "Muscle", "Lung")
+colnames(categorytable) = c("Mouse", "Rat", "Human", "Total")
+for (colnm in colnames(categorytable)[1:3]){
+  for (rownm in rownames(categorytable)){
+    if (rownm != "Brain"){
+      logspecies = grepl(paste0(".*",colnm,".*"), colnames(logFCmatrixregr))
+      logtissue = grepl(paste0(".*",rownm,".*"), colnames(logFCmatrixregr))
+      categorytable[rownm, colnm] = sum(logspecies & logtissue)
+    } else {
+      logspecies = grepl(paste0(".*",colnm,".*"), colnames(logFCmatrixregr))
+      logtissue = grepl(paste0(".*",rownm,".*"), colnames(logFCmatrixregr)) | grepl(paste0(".*","Cerebellum",".*"), colnames(logFCmatrixregr)) | grepl(paste0(".*","Frontalcortex",".*"), colnames(logFCmatrixregr))
+      categorytable[rownm, colnm] = sum(logspecies & logtissue)
+    }
+  }
+}
+categorytable[,"Total"] = categorytable[,"Mouse"] + categorytable[,"Human"] + categorytable[,"Rat"]
+
+
+##### THIS IS FOR MANY SIGNATURES BUT ONE MINIMIZATION RUN FOR EACH SIGNATURE
+
+# functions for heatmaps:
+reorder_cormat <- function(cormat,method="complete"){
+  # Use correlation between variables as distance
+  dd <- as.dist((1-cormat)/2)
+  hc <- hclust(dd,method = method)
+  cormat <-cormat[hc$order, hc$order]
+}
+# Get lower triangle of the correlation matrix
+get_lower_tri<-function(cormat){
+  cormat[upper.tri(cormat)] <- NA
+  return(cormat)
+}
+# Get upper triangle of the correlation matrix
+get_upper_tri <- function(cormat){
+  cormat[lower.tri(cormat)]<- NA
+  return(cormat)
+}
+
+# prep shit:
+chosencols = list()
+chosencols[["Human"]] = colnames(logFCmatrixregr)[grepl(".*Human.*", colnames(logFCmatrixregr))]
+chosencols[["Rat"]] = colnames(logFCmatrixregr)[grepl(".*Rat.*", colnames(logFCmatrixregr))]
+chosencols[["Mouse"]] = colnames(logFCmatrixregr)[grepl(".*Mouse.*", colnames(logFCmatrixregr))]
+chosencols[["Brain"]] = colnames(logFCmatrixregr)[grepl(".*Brain.*", colnames(logFCmatrixregr)) | grepl(".*Frontalcortex.*", colnames(logFCmatrixregr)) | grepl(".*Cerebellum.*", colnames(logFCmatrixregr))]
+chosencols[["Muscle"]] = colnames(logFCmatrixregr)[grepl(".*Muscle.*", colnames(logFCmatrixregr))]
+chosencols[["Liver"]] = colnames(logFCmatrixregr)[grepl(".*Liver.*", colnames(logFCmatrixregr))]
+chosencols[["All"]] = colnames(logFCmatrixregr)
+
+source("FUN.Deming_minimizer.R")
+source("FUN.Signature_builder.R")
+
+agingsignatures = list()
+
+for (name in names(chosencols)){
+  # filter datasets for the individual signature:
+  logFCmatrixchosen = logFCmatrixregr[, chosencols[[name]]]
+  SEmatrixchosen = SEmatrixregr[, chosencols[[name]]]
+  
+  # plot correlation heatmap:
+  cormatrix = data.frame()
+  for (i in 1:length(colnames(logFCmatrixchosen))){
+    cormatrix[colnames(logFCmatrixchosen)[i], colnames(logFCmatrixchosen)[i]] = 1
+  }
+  for (i in 1:(length(colnames(logFCmatrixchosen))-1)){
+    for (j in (i+1):length(colnames(logFCmatrixchosen))){
+      cormatrix[colnames(logFCmatrixchosen)[i], colnames(logFCmatrixchosen)[j]] = cor(logFCmatrixchosen[totalrownamematrix[[colnames(logFCmatrixchosen)[i]]][[colnames(logFCmatrixchosen)[j]]],i], logFCmatrixchosen[totalrownamematrix[[colnames(logFCmatrixchosen)[i]]][[colnames(logFCmatrixchosen)[j]]],j], method = "spearman", use = "complete.obs")
+      cormatrix[colnames(logFCmatrixchosen)[j], colnames(logFCmatrixchosen)[i]] = cormatrix[colnames(logFCmatrixchosen)[i], colnames(logFCmatrixchosen)[j]]
+    }
+  }
+  cormatrix_2 <- reorder_cormat(cormatrix, method="average")
+  cormatrix_2 = apply(cormatrix_2, 2, rev)
+  upper_tri <- get_upper_tri(cormatrix_2)
+  melted_cormat <- melt(cormatrix_2, na.rm = TRUE)
+  ggheatmap <- ggplot(melted_cormat, aes(Var2, Var1, fill = value))+
+    geom_tile(color = "white")+
+    scale_fill_gradient2(low = "blue4", high = "red4", mid = "white", 
+                         midpoint = 0, limit = c(-1,1), space = "Lab", 
+                         name="Spearman\nCorrelation") +
+    theme_minimal()+ # minimal theme
+    theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+                                     size = 12, hjust = 1))+
+    coord_fixed()
+  ggheatmap
+  pdf(paste0("./plots/signatureplots/", name, "/initialheatmap", ".pdf"))
+  print(ggheatmap)
+  dev.off()
+  
+  # minimize once:
+  kres = deming_minimizer(logFCmatrixchosen)$coefs
+  # plot an example:
+  plot1 = deming(logFCmatrixchosen[totalrownamematrix[[colnames(logFCmatrixchosen)[1]]][[colnames(logFCmatrixchosen)[2]]],1] ~ logFCmatrixchosen[totalrownamematrix[[colnames(logFCmatrixchosen)[1]]][[colnames(logFCmatrixchosen)[2]]],2] - 1)
+  plot(logFCmatrixchosen[totalrownamematrix[[colnames(logFCmatrixchosen)[1]]][[colnames(logFCmatrixchosen)[2]]],1], logFCmatrixchosen[totalrownamematrix[[colnames(logFCmatrixchosen)[1]]][[colnames(logFCmatrixchosen)[2]]],2], main = paste0("Correlation: ", as.character(cormatrixsign[colnames(logFCmatrixchosen)[1], colnames(logFCmatrixchosen)[2]]), ", p-value: ", as.character(coradjpvalsign[colnames(logFCmatrixchosen)[1], colnames(logFCmatrixchosen)[2]])))
+  abline(0, plot1$coefficients[2], col = "blue", lwd = 2)
+  abline(0, kres[2]/kres[1], col = "red", lwd = 2)
+  
+  ggheatmap = ggplot(logFCmatrixchosen[totalrownamematrix[[colnames(logFCmatrixchosen)[1]]][[colnames(logFCmatrixchosen)[2]]],], aes_string(x = colnames(logFCmatrixchosen)[1], y = colnames(logFCmatrixchosen)[2])) + geom_point() +
+    geom_abline(slope = plot1$coefficients[2], intercept = 0, colour = "blue", size = 1) + 
+    geom_hline(yintercept = 0) + geom_vline(xintercept = 0) +
+    geom_abline(slope = kres[2]/kres[1], intercept = 0, colour = "red", size = 1)
+  ggheatmap
+  pdf(paste0("./plots/signatureplots/", name, "/demingexample", ".pdf"))
+  print(ggheatmap)
+  dev.off()
+  
+  # normalize by deming coefficients:
+  
+  for (i in 1:length(colnames(logFCmatrixchosen))){
+    SEmatrixchosen[,i] = SEmatrixchosen[,i] / kres[i]
+    logFCmatrixchosen[,i] = logFCmatrixchosen[,i] / kres[i]
+  }
+  
+  # discard bad boys:
+  logFCmatrixchosen$NACount = rowSums(is.na(logFCmatrixchosen))
+  if (name != "Liver"){
+    ggplot(logFCmatrixchosen, aes(x = NACount)) + geom_density() + geom_vline(xintercept = floor(length(colnames(logFCmatrixchosen))/2))
+    goodboys = subset(rownames(logFCmatrixchosen), logFCmatrix$NACount < floor(length(colnames(logFCmatrixchosen))/2))
+  } else {
+    ggplot(logFCmatrixchosen, aes(x = NACount)) + geom_density() + geom_vline(xintercept = 4)
+    goodboys = subset(rownames(logFCmatrixchosen), logFCmatrix$NACount < 4)
+  }
+  logFCmatrixchosen = subset(logFCmatrixchosen, rownames(logFCmatrixchosen) %in% goodboys)
+  SEmatrixchosen = subset(SEmatrixchosen, rownames(SEmatrixchosen) %in% goodboys)
+  logFCmatrixchosen$NACount = NULL
+  
+  # run mixed-effect model:
+  agingsignatures[[name]] = signature_builder(logFCmatrixchosen)
+  # plot an example:
+  helpertable = as.data.frame(t(logFCmatrixchosen[1,]))
+  rownames(helpertable) = colnames(logFCmatrixchosen)
+  colnames(helpertable) = c("logFC")
+  helpertable$SE = t(SEmatrixchosen[1,])
+  helpertable$source = as.factor(sourcedata[rownames(helpertable),"dataset"])
+  helpertable$dataset = rownames(helpertable)
+  helpertable = na.omit(helpertable)
+  ggheatmap = ggplot(helpertable, aes(x = dataset, y = logFC, color = source)) + geom_pointrange(aes(ymin = logFC - SE, ymax = logFC + SE)) + geom_hline(yintercept = agingsignatures[[name]][rownames(logFCmatrixchosen)[1],logFC])
+  ggheatmap
+  pdf(paste0("./plots/signatureplots/", name, "/mixedmodelexample", ".pdf"))
+  print(ggheatmap)
+  dev.off()
+  
+  # plot verification cor heatmap:
+  logFCmatrixchosen = merge(logFCmatrixchosen, agingsignatures[[name]]["logFC"], by = "row.names", all = TRUE)
+  colnames(logFCmatrixchosen)[which(colnames(logFCmatrixchosen) == "logFC")] = paste0(name, "_signature")
+  logFCmatrixchosen = logFCmatrixchosen %>% column_to_rownames(var = "Row.names")
+  cormatrix = data.frame()
+  for (i in 1:length(colnames(logFCmatrixchosen))){
+    cormatrix[colnames(logFCmatrixchosen)[i], colnames(logFCmatrixchosen)[i]] = 1
+  }
+  for (i in 1:(length(colnames(logFCmatrixchosen))-1)){
+    for (j in (i+1):length(colnames(logFCmatrixchosen))){
+      cormatrix[colnames(logFCmatrixchosen)[i], colnames(logFCmatrixchosen)[j]] = cor(logFCmatrixchosen[totalrownamematrix[[colnames(logFCmatrixchosen)[i]]][[colnames(logFCmatrixchosen)[j]]],i], logFCmatrixchosen[totalrownamematrix[[colnames(logFCmatrixchosen)[i]]][[colnames(logFCmatrixchosen)[j]]],j], method = "spearman", use = "complete.obs")
+      cormatrix[colnames(logFCmatrixchosen)[j], colnames(logFCmatrixchosen)[i]] = cormatrix[colnames(logFCmatrixchosen)[i], colnames(logFCmatrixchosen)[j]]
+    }
+  }
+  cormatrix_2 <- reorder_cormat(cormatrix, method="average")
+  cormatrix_2 = apply(cormatrix_2, 2, rev)
+  upper_tri <- get_upper_tri(cormatrix_2)
+  melted_cormat <- melt(cormatrix_2, na.rm = TRUE)
+  ggheatmap <- ggplot(melted_cormat, aes(Var2, Var1, fill = value))+
+    geom_tile(color = "white")+
+    scale_fill_gradient2(low = "blue4", high = "red4", mid = "white", 
+                         midpoint = 0, limit = c(-1,1), space = "Lab", 
+                         name="Spearman\nCorrelation") +
+    theme_minimal()+ # minimal theme
+    theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+                                     size = 12, hjust = 1))+
+    coord_fixed()
+  ggheatmap
+  
+  pdf(paste0("./plots/signatureplots/", name, "/verificationheatmap", ".pdf"))
+  print(ggheatmap)
+  dev.off()
+}
+
+
+
 
 # correlation heatmap
 
