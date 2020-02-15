@@ -65,8 +65,8 @@ logFClist1 = logFClist
 logFClist1$Mouse$GSE53959 = NULL
 logFClist1$Human$GSE40645 = NULL
 logFClist1$Human$GSE5086 = NULL
-logFClist1$Mouse$`E-MTAB-3374` = NULL
-logFClist1$Human$GSE9103 = NULL
+#logFClist1$Mouse$`E-MTAB-3374` = NULL
+#logFClist1$Human$GSE9103 = NULL
 
 # convert to orthologs and make totalrownames:
 totalrownames = union(rownames(logFClist$Mouse$GSE6591$Lung$Male$DBA2J), rownames(logFClist$Mouse$GSE6591$Lung$Male$C57BL6J))
@@ -169,10 +169,12 @@ for (i in 1:length(logFCunlisted)){
 coradjpvalsign = data.frame()
 vec = as.vector(corpvalsign[upper.tri(corpvalsign, diag = F)])
 vec = p.adjust(vec, method = "BH")
-tempmatrix = matrix(0, 58, 58)
-tempmatrix[lower.tri(tempmatrix, diag = F)] = vec
-tempmatrix = t(tempmatrix)
+tempmatrix = matrix(0, length(logFCunlisted), length(logFCunlisted))
+tempmatrix[upper.tri(tempmatrix, diag = F)] = vec
 tempmatrix[lower.tri(tempmatrix, diag = F)] = t(tempmatrix)[lower.tri(t(tempmatrix), diag = F)]
+#tempmatrix[lower.tri(tempmatrix, diag = F)] = vec
+#tempmatrix = t(tempmatrix)
+#tempmatrix[lower.tri(tempmatrix, diag = F)] = t(tempmatrix)[lower.tri(t(tempmatrix), diag = F)]
 coradjpvalsign = tempmatrix
 colnames(coradjpvalsign) = colnames(corpvalsign)
 rownames(coradjpvalsign) = rownames(corpvalsign)
@@ -229,23 +231,24 @@ sourcedata = as.data.frame(colnames(logFCmatrixregr))
 rownames(sourcedata) = colnames(logFCmatrixregr)
 colnames(sourcedata) = "kekkekkek"
 sourcedata = sourcedata %>% separate(kekkekkek, c(NA, "dataset", NA), sep = "_")
-
-logFCmatrixchosen = logFCmatrixregr
-SEmatrixchosen = SEmatrixregr
-
-##### THIS IS FOR THE COMPLETE SIGNATURE (10 MINIMIZATION RUNS)
-
-# run deming minimization:
-source("FUN.Deming_minimizer.R")
-
-# running it 10 times:
-bigres = list()
-minimums = c()
-for (i in 1:10){
-  bigres[[i]] = deming_minimizer(logFCmatrixchosen)
-  minimums = c(minimums, bigres[[i]]$minimum)
-}
-kres = bigres[[which.min(minimums)]]$coefs
+  
+  logFCmatrixchosen = logFCmatrixregr
+  SEmatrixchosen = SEmatrixregr
+  
+  ##### THIS IS FOR THE COMPLETE SIGNATURE (10 MINIMIZATION RUNS)
+  
+  # run deming minimization:
+  source("FUN.Deming_minimizer.R")
+  
+  # running it 10 times:
+  bigres = list()
+  minimums = c()
+  for (i in 1:10){
+    bigres[[i]] = deming_minimizer(logFCmatrixchosen)
+    minimums = c(minimums, bigres[[i]]$minimum)
+    print(paste0("Opa! ", i, "th minimization done."))
+  }
+  kres = bigres[[which.min(minimums)]]$coefs
 
 # normalize by deming coefficients:
 
