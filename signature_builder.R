@@ -231,24 +231,24 @@ sourcedata = as.data.frame(colnames(logFCmatrixregr))
 rownames(sourcedata) = colnames(logFCmatrixregr)
 colnames(sourcedata) = "kekkekkek"
 sourcedata = sourcedata %>% separate(kekkekkek, c(NA, "dataset", NA), sep = "_")
-  
-  logFCmatrixchosen = logFCmatrixregr
-  SEmatrixchosen = SEmatrixregr
-  
-  ##### THIS IS FOR THE COMPLETE SIGNATURE (10 MINIMIZATION RUNS)
-  
-  # run deming minimization:
-  source("FUN.Deming_minimizer.R")
-  
-  # running it 10 times:
-  bigres = list()
-  minimums = c()
-  for (i in 1:10){
-    bigres[[i]] = deming_minimizer(logFCmatrixchosen)
-    minimums = c(minimums, bigres[[i]]$minimum)
-    print(paste0("Opa! ", i, "th minimization done."))
-  }
-  kres = bigres[[which.min(minimums)]]$coefs
+
+logFCmatrixchosen = logFCmatrixregr
+SEmatrixchosen = SEmatrixregr
+
+##### THIS IS FOR THE COMPLETE SIGNATURE (10 MINIMIZATION RUNS)
+
+# run deming minimization:
+source("FUN.Deming_minimizer.R")
+
+# running it 10 times:
+bigres = list()
+minimums = c()
+for (i in 1:10){
+  bigres[[i]] = deming_minimizer(logFCmatrixchosen)
+  minimums = c(minimums, bigres[[i]]$minimum)
+  print(paste0("Opa! ", i, "th minimization done."))
+}
+kres = bigres[[which.min(minimums)]]$coefs
 
 # normalize by deming coefficients:
 
