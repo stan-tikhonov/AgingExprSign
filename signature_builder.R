@@ -223,6 +223,7 @@ for (i in 1:(length(logFCunlisted)-1)){
     rownamesA = rownames(subset(logFCunlisted[[i]], rownames(logFCunlisted[[i]]) %in% totalrownames))
     rownamesB = rownames(subset(logFCunlisted[[j]], rownames(logFCunlisted[[j]]) %in% totalrownames))
     totalrownamematrix[[names(logFCunlisted)[i]]][[names(logFCunlisted)[j]]] = intersect(rownamesA, rownamesB)
+    totalrownamematrix[[names(logFCunlisted)[j]]][[names(logFCunlisted)[i]]] = intersect(rownamesA, rownamesB)
   }
 }
 
@@ -323,6 +324,7 @@ source("FUN.Deming_minimizer.R")
 source("FUN.Signature_builder.R")
 
 agingsignatures = list()
+deminglist = list()
 
 for (name in names(chosencols)){
   # filter datasets for the individual signature:
@@ -358,22 +360,34 @@ for (name in names(chosencols)){
   print(ggheatmap)
   dev.off()
   
-  # minimize once:
-  kres = deming_minimizer(logFCmatrixchosen)$coefs
+  # minimize:
+  minimums = c()
+  for (i in 1:10){
+    deminglist[[name]][i] = deming_minimizer(logFCmatrixchosen)
+    minimums = c(minimums, deminglist[[name]][i]$minimum)
+  }
+  kres = deminglist[[name]][which.min(minimums)]$coefs
   # plot an example:
-  plot1 = deming(logFCmatrixchosen[totalrownamematrix[[colnames(logFCmatrixchosen)[1]]][[colnames(logFCmatrixchosen)[2]]],1] ~ logFCmatrixchosen[totalrownamematrix[[colnames(logFCmatrixchosen)[1]]][[colnames(logFCmatrixchosen)[2]]],2] - 1)
-  plot(logFCmatrixchosen[totalrownamematrix[[colnames(logFCmatrixchosen)[1]]][[colnames(logFCmatrixchosen)[2]]],1], logFCmatrixchosen[totalrownamematrix[[colnames(logFCmatrixchosen)[1]]][[colnames(logFCmatrixchosen)[2]]],2], main = paste0("Correlation: ", as.character(cormatrixsign[colnames(logFCmatrixchosen)[1], colnames(logFCmatrixchosen)[2]]), ", p-value: ", as.character(coradjpvalsign[colnames(logFCmatrixchosen)[1], colnames(logFCmatrixchosen)[2]])))
-  abline(0, plot1$coefficients[2], col = "blue", lwd = 2)
-  abline(0, kres[2]/kres[1], col = "red", lwd = 2)
+  kekmatrix = cormatrixsign[chosencols[[name]], chosencols[[name]]] %>% rownames_to_column("datasetid1")
+  kekmatrix = gather(kekmatrix, datasetid2, corvalue, -datasetid1)
+  kekmatrix$corvalue = as.numeric(as.character(kekmatrix$corvalue))
+  kekmatrix = kekmatrix %>% filter(corvalue != 1) %>% top_n(10, corvalue) %>% distinct(corvalue, .keep_all = T)
   
-  ggheatmap = ggplot(logFCmatrixchosen[totalrownamematrix[[colnames(logFCmatrixchosen)[1]]][[colnames(logFCmatrixchosen)[2]]],], aes_string(x = colnames(logFCmatrixchosen)[1], y = colnames(logFCmatrixchosen)[2])) + geom_point() +
-    geom_abline(slope = plot1$coefficients[2], intercept = 0, colour = "blue", size = 1) + 
-    geom_hline(yintercept = 0) + geom_vline(xintercept = 0) +
-    geom_abline(slope = kres[2]/kres[1], intercept = 0, colour = "red", size = 1)
-  ggheatmap
-  pdf(paste0("./plots/signatureplots/", name, "/demingexample", ".pdf"))
-  print(ggheatmap)
-  dev.off()
+  for (i in 1:length(rownames(kekmatrix))){
+    plot1 = deming(logFCmatrixchosen[totalrownamematrix[[colnames(logFCmatrixchosen)[1]]][[colnames(logFCmatrixchosen)[2]]],1] ~ logFCmatrixchosen[totalrownamematrix[[colnames(logFCmatrixchosen)[1]]][[colnames(logFCmatrixchosen)[2]]],2] - 1)
+    #plot(logFCmatrixchosen[totalrownamematrix[[colnames(logFCmatrixchosen)[1]]][[colnames(logFCmatrixchosen)[2]]],1], logFCmatrixchosen[totalrownamematrix[[colnames(logFCmatrixchosen)[1]]][[colnames(logFCmatrixchosen)[2]]],2], main = paste0("Correlation: ", as.character(cormatrixsign[colnames(logFCmatrixchosen)[1], colnames(logFCmatrixchosen)[2]]), ", p-value: ", as.character(coradjpvalsign[colnames(logFCmatrixchosen)[1], colnames(logFCmatrixchosen)[2]])))
+    #abline(0, plot1$coefficients[2], col = "blue", lwd = 2)
+    #abline(0, kres[2]/kres[1], col = "red", lwd = 2)
+    
+    ggheatmap = ggplot(logFCmatrixchosen[totalrownamematrix[[kekmatrix[i,"datasetid1"]]][[kekmatrix[i,"datasetid2"]]],], aes_string(x = kekmatrix[i,"datasetid1"], y = kekmatrix[i,"datasetid2"])) + geom_point() +
+      geom_abline(slope = plot1$coefficients[2], intercept = 0, colour = "blue", size = 1) + 
+      geom_hline(yintercept = 0) + geom_vline(xintercept = 0) +
+      geom_abline(slope = kres[2]/kres[1], intercept = 0, colour = "red", size = 1)
+    ggheatmap
+    pdf(paste0("./plots/signatureplots/", name, "/demingexample", i, ".pdf"))
+    print(ggheatmap)
+    dev.off()
+  }
   
   # normalize by deming coefficients:
   
@@ -398,18 +412,22 @@ for (name in names(chosencols)){
   # run mixed-effect model:
   agingsignatures[[name]] = signature_builder(logFCmatrixchosen)
   # plot an example:
-  helpertable = as.data.frame(t(logFCmatrixchosen[1,]))
-  rownames(helpertable) = colnames(logFCmatrixchosen)
-  colnames(helpertable) = c("logFC")
-  helpertable$SE = t(SEmatrixchosen[1,])
-  helpertable$source = as.factor(sourcedata[rownames(helpertable),"dataset"])
-  helpertable$dataset = rownames(helpertable)
-  helpertable = na.omit(helpertable)
-  ggheatmap = ggplot(helpertable, aes(x = dataset, y = logFC, color = source)) + geom_pointrange(aes(ymin = logFC - SE, ymax = logFC + SE)) + geom_hline(yintercept = agingsignatures[[name]][rownames(logFCmatrixchosen)[1], "logFC"], colour = "red") + geom_hline(yintercept = 0)
-  ggheatmap
-  pdf(paste0("./plots/signatureplots/", name, "/mixedmodelexample", ".pdf"))
-  print(ggheatmap)
-  dev.off()
+  geneids = agingsignatures[[name]] %>% top_n(-5, adj_pval)
+  geneids = rownames(geneids)
+  for (i in 1:length(geneids)){
+    helpertable = as.data.frame(t(logFCmatrixchosen[geneids[i],]))
+    rownames(helpertable) = colnames(logFCmatrixchosen)
+    colnames(helpertable) = c("logFC")
+    helpertable$SE = t(SEmatrixchosen[geneids[i],])
+    helpertable$source = as.factor(sourcedata[rownames(helpertable),"dataset"])
+    helpertable$dataset = rownames(helpertable)
+    helpertable = na.omit(helpertable)
+    ggheatmap = ggplot(helpertable, aes(x = dataset, y = logFC, color = source)) + geom_pointrange(aes(ymin = logFC - SE, ymax = logFC + SE)) + geom_hline(yintercept = agingsignatures[[name]][geneids[i], "logFC"], colour = "red") + geom_hline(yintercept = 0)
+    ggheatmap
+    pdf(paste0("./plots/signatureplots/", name, "/mixedmodelexample", i, ".pdf"))
+    print(ggheatmap)
+    dev.off()
+  }
   
   # plot verification cor heatmap:
   logFCmatrixchosen = merge(logFCmatrixchosen, agingsignatures[[name]]["logFC"], by = "row.names", all = TRUE)
@@ -450,17 +468,19 @@ for (name in names(chosencols)){
   dev.off()
   
   significantgenematrix[is.na(significantgenematrix)] = 0
-  significantgenematrix = significantgenematrix %>% rownames_to_column(var = "id")
-  meltedshit = gather(significantgenematrix, dataset, logFC, -id)
+  #clusteredshit = reorder_cormat(significantgenematrix)
+  #dd <- as.dist((1-cor(t(significantgenematrix), method = "spearman"))/2)
+  dd = dist(significantgenematrix, method = "manhattan")
+  hc <- hclust(dd,method = "average")
+  clusteredshit <-significantgenematrix[hc$order,]
+  clusteredshit = clusteredshit %>% rownames_to_column(var = "id")
+  meltedshit = gather(clusteredshit, dataset, logFC, -id, factor_key = T)
+  meltedshit$id = factor(meltedshit$id, levels = as.character(meltedshit$id[1:length(rownames(significantgenematrix))]))
   ggheatmap <- ggplot(meltedshit, aes(dataset, id, fill = logFC))+
-    geom_tile(color = "white")+
+    geom_tile()+
     scale_fill_gradient2(low = "blue4", high = "red4", mid = "white", 
                          midpoint = 0, space = "Lab", 
-                         name="logFC") +
-    theme_minimal()+ # minimal theme
-    theme(axis.text.x = element_text(angle = 45, vjust = 1, 
-                                     size = 12, hjust = 1))+
-    coord_fixed()
+                         name="LogFC")
   ggheatmap
   pdf(paste0("./plots/signatureplots/", name, "/heatmapbygene", ".pdf"))
   print(ggheatmap)
