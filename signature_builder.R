@@ -465,9 +465,11 @@ for (name in names(chosencols)){
   pdf(paste0("./plots/signatureplots/", name, "/heatmapbygene", ".pdf"))
   print(ggheatmap)
   dev.off()
+  
+  print(paste0("I'm done with the ", name, " signature."))
 }
 
-
+save(agingsignatures, file = "agingsignatures.RData")
 
 
 # correlation heatmap
