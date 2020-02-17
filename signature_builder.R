@@ -405,7 +405,7 @@ for (name in names(chosencols)){
   helpertable$source = as.factor(sourcedata[rownames(helpertable),"dataset"])
   helpertable$dataset = rownames(helpertable)
   helpertable = na.omit(helpertable)
-  ggheatmap = ggplot(helpertable, aes(x = dataset, y = logFC, color = source)) + geom_pointrange(aes(ymin = logFC - SE, ymax = logFC + SE)) + geom_hline(yintercept = agingsignatures[[name]][rownames(logFCmatrixchosen)[1],logFC])
+  ggheatmap = ggplot(helpertable, aes(x = dataset, y = logFC, color = source)) + geom_pointrange(aes(ymin = logFC - SE, ymax = logFC + SE)) + geom_hline(yintercept = agingsignatures[[name]][rownames(logFCmatrixchosen)[1], "logFC"], colour = "red") + geom_hline(yintercept = 0)
   ggheatmap
   pdf(paste0("./plots/signatureplots/", name, "/mixedmodelexample", ".pdf"))
   print(ggheatmap)
@@ -415,16 +415,21 @@ for (name in names(chosencols)){
   logFCmatrixchosen = merge(logFCmatrixchosen, agingsignatures[[name]]["logFC"], by = "row.names", all = TRUE)
   colnames(logFCmatrixchosen)[which(colnames(logFCmatrixchosen) == "logFC")] = paste0(name, "_signature")
   logFCmatrixchosen = logFCmatrixchosen %>% column_to_rownames(var = "Row.names")
-  cormatrix = data.frame()
-  for (i in 1:length(colnames(logFCmatrixchosen))){
-    cormatrix[colnames(logFCmatrixchosen)[i], colnames(logFCmatrixchosen)[i]] = 1
-  }
-  for (i in 1:(length(colnames(logFCmatrixchosen))-1)){
-    for (j in (i+1):length(colnames(logFCmatrixchosen))){
-      cormatrix[colnames(logFCmatrixchosen)[i], colnames(logFCmatrixchosen)[j]] = cor(logFCmatrixchosen[totalrownamematrix[[colnames(logFCmatrixchosen)[i]]][[colnames(logFCmatrixchosen)[j]]],i], logFCmatrixchosen[totalrownamematrix[[colnames(logFCmatrixchosen)[i]]][[colnames(logFCmatrixchosen)[j]]],j], method = "spearman", use = "complete.obs")
-      cormatrix[colnames(logFCmatrixchosen)[j], colnames(logFCmatrixchosen)[i]] = cormatrix[colnames(logFCmatrixchosen)[i], colnames(logFCmatrixchosen)[j]]
-    }
-  }
+  significantgenematrix = logFCmatrixchosen[rownames(subset(agingsignatures[[name]], adj_pval < 0.05)),]
+  cormatrix = cor(significantgenematrix, use = "pairwise.complete.obs", method = "pearson")
+  
+  
+  
+  #cormatrix = data.frame()
+  #for (i in 1:length(colnames(logFCmatrixchosen))){
+  #  cormatrix[colnames(logFCmatrixchosen)[i], colnames(logFCmatrixchosen)[i]] = 1
+  #}
+  #for (i in 1:(length(colnames(logFCmatrixchosen))-1)){
+  #  for (j in (i+1):length(colnames(logFCmatrixchosen))){
+  #    cormatrix[colnames(logFCmatrixchosen)[i], colnames(logFCmatrixchosen)[j]] = cor(logFCmatrixchosen[totalrownamematrix[[colnames(logFCmatrixchosen)[i]]][[colnames(logFCmatrixchosen)[j]]],i], logFCmatrixchosen[totalrownamematrix[[colnames(logFCmatrixchosen)[i]]][[colnames(logFCmatrixchosen)[j]]],j], method = "spearman", use = "complete.obs")
+  #    cormatrix[colnames(logFCmatrixchosen)[j], colnames(logFCmatrixchosen)[i]] = cormatrix[colnames(logFCmatrixchosen)[i], colnames(logFCmatrixchosen)[j]]
+  #  }
+  #}
   cormatrix_2 <- reorder_cormat(cormatrix, method="average")
   cormatrix_2 = apply(cormatrix_2, 2, rev)
   upper_tri <- get_upper_tri(cormatrix_2)
@@ -441,6 +446,23 @@ for (name in names(chosencols)){
   ggheatmap
   
   pdf(paste0("./plots/signatureplots/", name, "/verificationheatmap", ".pdf"))
+  print(ggheatmap)
+  dev.off()
+  
+  significantgenematrix[is.na(significantgenematrix)] = 0
+  significantgenematrix = significantgenematrix %>% rownames_to_column(var = "id")
+  meltedshit = gather(significantgenematrix, dataset, logFC, -id)
+  ggheatmap <- ggplot(meltedshit, aes(dataset, id, fill = logFC))+
+    geom_tile(color = "white")+
+    scale_fill_gradient2(low = "blue4", high = "red4", mid = "white", 
+                         midpoint = 0, space = "Lab", 
+                         name="logFC") +
+    theme_minimal()+ # minimal theme
+    theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+                                     size = 12, hjust = 1))+
+    coord_fixed()
+  ggheatmap
+  pdf(paste0("./plots/signatureplots/", name, "/heatmapbygene", ".pdf"))
   print(ggheatmap)
   dev.off()
 }
