@@ -348,6 +348,7 @@ for (name in names(chosencols)){
 
 # visualisation of coef distributions:
 for (name in names(deminglist)){
+  # here a is coefs and b is minimums
   a = as.data.frame(deminglist[[name]][[1]]$coefs)
   for (i in 2:length(deminglist[[name]])){
     a = cbind(a, deminglist[[name]][[i]]$coefs)
@@ -361,11 +362,183 @@ for (name in names(deminglist)){
   }
   b = cbind(b, 1:10)
   colnames(b) = c("minimum", "variable")
+  temp = cortestsign[chosencols[[name]], chosencols[[name]]]
+  normcoef = sum(temp[upper.tri(temp, diag = F)] == 1)
+  b$minimum = b$minimum / normcoef
   b$variable = as.factor(b$variable)
   a.m$minimum = left_join(a.m, b, by = "variable")
-  print(ggplot(a.m$minimum, aes(group, value)) + geom_boxplot()) #+ geom_jitter(aes(color = as.factor(round(minimum, 2)))))
+  print(ggplot(a.m$minimum, aes(group, value)) + geom_boxplot() + geom_jitter(aes(color = as.factor(round(minimum, 4)))))
 }
+
+# only plot examples from metafor:
+for (name in names(chosencols)){
+  logFCmatrixchosen = logFCmatrixregr[, chosencols[[name]]]
+  SEmatrixchosen = SEmatrixregr[, chosencols[[name]]]
+  # plot examples:
+  geneids = agingsignatures[[name]] %>% rownames_to_column("Row.names") %>% top_n(-5, adj_pval) %>% column_to_rownames("Row.names")
+  geneids = rownames(geneids)
+  for (i in 1:length(geneids)){
+    helpertable = as.data.frame(t(logFCmatrixchosen[geneids[i],]))
+    rownames(helpertable) = colnames(logFCmatrixchosen)
+    colnames(helpertable) = c("logFC")
+    helpertable$SE = t(SEmatrixchosen[geneids[i],])
+    helpertable$source = as.factor(sourcedata[rownames(helpertable),"dataset"])
+    helpertable$dataset = rownames(helpertable)
+    helpertable = na.omit(helpertable)
+    border = max(abs(helpertable$logFC)) + max(helpertable$SE)
+    ggheatmap = ggplot(helpertable, aes(x = dataset, y = logFC, color = source)) + geom_pointrange(aes(ymin = logFC - SE, ymax = logFC + SE)) + geom_hline(yintercept = agingsignatures[[name]][geneids[i], "logFC"], colour = "red") +
+      geom_hline(yintercept = 0) + ylim(-border, border)
+    print(ggheatmap)
+    #pdf(paste0("./plots/signatureplots/", name, "/mixedmodelexample", i, ".pdf"))
+    #print(ggheatmap)
+    #dev.off()
+  }
+}
+
+
+# z-test for each gene:
+agingztests = list()
+
+signature_ttester = function(logFCmatrixregr){
+  goodgenes = c()
+  signature = data.frame()
+  genenumber = 0
+  for (genename in rownames(logFCmatrixregr)){
+    genenumber = genenumber + 1
+    percentready = (genenumber/length(rownames(logFCmatrixregr))) * 100
+    if (genenumber %% 1000 == 0){
+      print(paste0("I'm on gene No. ", genenumber, " (", round(percentready, 2), "% done)"))
+    }
+    logFC = logFCmatrixregr[genename,]
+    logFC = logFC[!is.na(logFC)]
+    ttestres = t.test(logFC)
+    signature = rbind(signature, c(ttestres$estimate, ttestres$p.value))
+    goodgenes = c(goodgenes, genename)
+  }
+  #rownames(signature) = totalgenes[-which(totalgenes %in% badgenes)]
+  rownames(signature) = goodgenes
+  colnames(signature) = c("logFC", "pval")
   
+  signature$adj_pval = p.adjust(signature$pval, method = "BH")
+  return(signature)
+}
+
+for (name in names(chosencols)){
+  # filter datasets for the individual signature:
+  logFCmatrixchosen = logFCmatrixregr[, chosencols[[name]]]
+  SEmatrixchosen = SEmatrixregr[, chosencols[[name]]]
+  
+  # get the deming coefs:
+  minimums = c()
+  for (i in 1:10){
+    #deminglist[[name]][[i]] = deming_minimizer(logFCmatrixchosen)
+    minimums = c(minimums, deminglist[[name]][[i]]$minimum)
+  }
+  kres = deminglist[[name]][[which.min(minimums)]]$coefs
+  
+  # normalize by deming coefficients:
+  
+  for (i in 1:length(colnames(logFCmatrixchosen))){
+    SEmatrixchosen[,i] = SEmatrixchosen[,i] / kres[i]
+    logFCmatrixchosen[,i] = logFCmatrixchosen[,i] / kres[i]
+  }
+  
+  # discard bad boys:
+  logFCmatrixchosen$NACount = rowSums(is.na(logFCmatrixchosen))
+  if (name != "Liver"){
+    ggplot(logFCmatrixchosen, aes(x = NACount)) + geom_density() + geom_vline(xintercept = floor(length(colnames(logFCmatrixchosen))/2))
+    goodboys = subset(rownames(logFCmatrixchosen), logFCmatrix$NACount < floor(length(colnames(logFCmatrixchosen))/2))
+  } else {
+    ggplot(logFCmatrixchosen, aes(x = NACount)) + geom_density() + geom_vline(xintercept = 4)
+    goodboys = subset(rownames(logFCmatrixchosen), logFCmatrix$NACount < 4)
+  }
+  logFCmatrixchosen = subset(logFCmatrixchosen, rownames(logFCmatrixchosen) %in% goodboys)
+  SEmatrixchosen = subset(SEmatrixchosen, rownames(SEmatrixchosen) %in% goodboys)
+  logFCmatrixchosen$NACount = NULL
+  
+  agingztests[[name]] = signature_ttester(logFCmatrixchosen)
+}
+
+
+# metafor no nothing:
+agingmetafornonothing = list()
+
+signature_metafornonothing = function(logFCmatrixregr){
+  goodgenes = c()
+  signature = data.frame()
+  genenumber = 0
+  for (genename in rownames(logFCmatrixregr)){
+    genenumber = genenumber + 1
+    percentready = (genenumber/length(rownames(logFCmatrixregr))) * 100
+    if (genenumber %% 1000 == 0){
+      print(paste0("I'm on gene No. ", genenumber, " (", round(percentready, 2), "% done)"))
+    }
+    logFC = logFCmatrixregr[genename,]
+    logFC = logFC[!is.na(logFC)]
+    SE = SEmatrixregr[genename,]
+    SE = SE[!is.na(SE)]
+    sourcevec = as.factor(sourcedata[colnames(logFCmatrixregr)[!is.na(logFCmatrixregr[genename,])],])
+    #SE = rep(1, length(logFC))
+    
+    tryCatch(
+      {
+        mixedeffres = rma.mv(yi = logFC, V = SE ^ 2, method = "REML", random = list(~ 1 | sourcevec))
+        signature = rbind(signature, c(mixedeffres$b[1], mixedeffres$pval))
+        goodgenes = c(goodgenes, genename)
+      },
+      error=function(cond) {
+        message("Fucked up")
+        message("Here's the original error message:")
+        message(cond)
+      }
+    )
+  }
+  #rownames(signature) = totalgenes[-which(totalgenes %in% badgenes)]
+  rownames(signature) = goodgenes
+  colnames(signature) = c("logFC", "pval")
+  
+  signature$adj_pval = p.adjust(signature$pval, method = "BH")
+  return(signature)
+}
+
+for (name in names(chosencols)){
+  # filter datasets for the individual signature:
+  logFCmatrixchosen = logFCmatrixregr[, chosencols[[name]]]
+  SEmatrixchosen = SEmatrixregr[, chosencols[[name]]]
+  
+  # get the deming coefs:
+  minimums = c()
+  for (i in 1:10){
+    #deminglist[[name]][[i]] = deming_minimizer(logFCmatrixchosen)
+    minimums = c(minimums, deminglist[[name]][[i]]$minimum)
+  }
+  kres = deminglist[[name]][[which.min(minimums)]]$coefs
+  
+  # normalize by deming coefficients:
+  
+  for (i in 1:length(colnames(logFCmatrixchosen))){
+    SEmatrixchosen[,i] = SEmatrixchosen[,i] / kres[i]
+    logFCmatrixchosen[,i] = logFCmatrixchosen[,i] / kres[i]
+  }
+  
+  # discard bad boys:
+  logFCmatrixchosen$NACount = rowSums(is.na(logFCmatrixchosen))
+  if (name != "Liver"){
+    ggplot(logFCmatrixchosen, aes(x = NACount)) + geom_density() + geom_vline(xintercept = floor(length(colnames(logFCmatrixchosen))/2))
+    goodboys = subset(rownames(logFCmatrixchosen), logFCmatrix$NACount < floor(length(colnames(logFCmatrixchosen))/2))
+  } else {
+    ggplot(logFCmatrixchosen, aes(x = NACount)) + geom_density() + geom_vline(xintercept = 4)
+    goodboys = subset(rownames(logFCmatrixchosen), logFCmatrix$NACount < 4)
+  }
+  logFCmatrixchosen = subset(logFCmatrixchosen, rownames(logFCmatrixchosen) %in% goodboys)
+  SEmatrixchosen = subset(SEmatrixchosen, rownames(SEmatrixchosen) %in% goodboys)
+  logFCmatrixchosen$NACount = NULL
+  
+  agingmetafornonothing[[name]] = signature_metafornonothing(logFCmatrixchosen)
+}
+
+
+
 # main loop:
 for (name in names(chosencols)){
   # filter datasets for the individual signature:
@@ -454,7 +627,7 @@ for (name in names(chosencols)){
   # run mixed-effect model:
   agingsignatures[[name]] = signature_builder(logFCmatrixchosen)
   # plot examples:
-  geneids = agingsignatures[[name]] %>% top_n(-5, adj_pval)
+  geneids = agingsignatures[[name]] %>% rownames_to_column("Row.names") %>% top_n(-5, adj_pval) %>% column_to_rownames("Row.names")
   geneids = rownames(geneids)
   for (i in 1:length(geneids)){
     helpertable = as.data.frame(t(logFCmatrixchosen[geneids[i],]))
@@ -464,7 +637,9 @@ for (name in names(chosencols)){
     helpertable$source = as.factor(sourcedata[rownames(helpertable),"dataset"])
     helpertable$dataset = rownames(helpertable)
     helpertable = na.omit(helpertable)
-    ggheatmap = ggplot(helpertable, aes(x = dataset, y = logFC, color = source)) + geom_pointrange(aes(ymin = logFC - SE, ymax = logFC + SE)) + geom_hline(yintercept = agingsignatures[[name]][geneids[i], "logFC"], colour = "red") + geom_hline(yintercept = 0)
+    border = max(abs(helpertable$logFC)) + max(helpertable$SE)
+    ggheatmap = ggplot(helpertable, aes(x = dataset, y = logFC, color = source)) + geom_pointrange(aes(ymin = logFC - SE, ymax = logFC + SE)) + geom_hline(yintercept = agingsignatures[[name]][geneids[i], "logFC"], colour = "red") +
+      geom_hline(yintercept = 0) + ylim(-border, border)
     ggheatmap
     pdf(paste0("./plots/signatureplots/", name, "/mixedmodelexample", i, ".pdf"))
     print(ggheatmap)
