@@ -325,7 +325,48 @@ source("FUN.Signature_builder.R")
 
 agingsignatures = list()
 deminglist = list()
+deminglist[["Human"]] = list()
+deminglist[["Mouse"]] = list()
+deminglist[["Rat"]] = list()
+deminglist[["Muscle"]] = list()
+deminglist[["Brain"]] = list()
+deminglist[["Liver"]] = list()
+deminglist[["All"]] = list()
 
+# minimization loop:
+for (name in names(chosencols)){
+  # filter datasets for the individual signature:
+  logFCmatrixchosen = logFCmatrixregr[, chosencols[[name]]]
+  # minimize:
+  minimums = c()
+  for (i in 1:10){
+    deminglist[[name]][[i]] = deming_minimizer(logFCmatrixchosen)
+    minimums = c(minimums, deminglist[[name]][[i]]$minimum)
+  }
+  print(paste0("I'm done with ", name))
+} 
+
+# visualisation of coef distributions:
+for (name in names(deminglist)){
+  a = as.data.frame(deminglist[[name]][[1]]$coefs)
+  for (i in 2:length(deminglist[[name]])){
+    a = cbind(a, deminglist[[name]][[i]]$coefs)
+  }
+  colnames(a) = 1:10
+  a$group <- row.names(a)
+  a.m <- melt(a, id.vars = "group")
+  b = data.frame()
+  for (i in 1:10){
+    b = rbind(b, deminglist[[name]][[i]]$minimum)
+  }
+  b = cbind(b, 1:10)
+  colnames(b) = c("minimum", "variable")
+  b$variable = as.factor(b$variable)
+  a.m$minimum = left_join(a.m, b, by = "variable")
+  print(ggplot(a.m$minimum, aes(group, value)) + geom_boxplot()) #+ geom_jitter(aes(color = as.factor(round(minimum, 2)))))
+}
+  
+# main loop:
 for (name in names(chosencols)){
   # filter datasets for the individual signature:
   logFCmatrixchosen = logFCmatrixregr[, chosencols[[name]]]
@@ -360,14 +401,15 @@ for (name in names(chosencols)){
   print(ggheatmap)
   dev.off()
   
-  # minimize:
+  # get the deming coefs:
   minimums = c()
   for (i in 1:10){
-    deminglist[[name]][i] = deming_minimizer(logFCmatrixchosen)
-    minimums = c(minimums, deminglist[[name]][i]$minimum)
+    #deminglist[[name]][[i]] = deming_minimizer(logFCmatrixchosen)
+    minimums = c(minimums, deminglist[[name]][[i]]$minimum)
   }
-  kres = deminglist[[name]][which.min(minimums)]$coefs
-  # plot an example:
+  kres = deminglist[[name]][[which.min(minimums)]]$coefs
+  
+  # plot exapmles:
   kekmatrix = cormatrixsign[chosencols[[name]], chosencols[[name]]] %>% rownames_to_column("datasetid1")
   kekmatrix = gather(kekmatrix, datasetid2, corvalue, -datasetid1)
   kekmatrix$corvalue = as.numeric(as.character(kekmatrix$corvalue))
@@ -411,7 +453,7 @@ for (name in names(chosencols)){
   
   # run mixed-effect model:
   agingsignatures[[name]] = signature_builder(logFCmatrixchosen)
-  # plot an example:
+  # plot examples:
   geneids = agingsignatures[[name]] %>% top_n(-5, adj_pval)
   geneids = rownames(geneids)
   for (i in 1:length(geneids)){
@@ -467,6 +509,7 @@ for (name in names(chosencols)){
   print(ggheatmap)
   dev.off()
   
+  # plot a verification heatmap by gene
   significantgenematrix[is.na(significantgenematrix)] = 0
   #clusteredshit = reorder_cormat(significantgenematrix)
   #dd <- as.dist((1-cor(t(significantgenematrix), method = "spearman"))/2)
