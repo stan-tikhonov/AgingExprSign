@@ -6,6 +6,8 @@ library(deming)
 library(reshape2)
 library(metafor)
 
+load("logFClist.RData")
+
 # create entrez mappings between mouse and rat, and mouse and human
 
 # default:
@@ -396,6 +398,9 @@ for (name in names(chosencols)){
 }
 
 
+
+
+
 # z-test for each gene:
 agingztests = list()
 
@@ -538,6 +543,8 @@ for (name in names(chosencols)){
 }
 
 
+##### MAIN LOOP #####
+
 
 # main loop:
 for (name in names(chosencols)){
@@ -589,7 +596,7 @@ for (name in names(chosencols)){
   kekmatrix = kekmatrix %>% filter(corvalue != 1) %>% top_n(10, corvalue) %>% distinct(corvalue, .keep_all = T)
   
   for (i in 1:length(rownames(kekmatrix))){
-    plot1 = deming(logFCmatrixchosen[totalrownamematrix[[colnames(logFCmatrixchosen)[1]]][[colnames(logFCmatrixchosen)[2]]],1] ~ logFCmatrixchosen[totalrownamematrix[[colnames(logFCmatrixchosen)[1]]][[colnames(logFCmatrixchosen)[2]]],2] - 1)
+    plot1 = deming(logFCmatrixchosen[totalrownamematrix[[kekmatrix[i,"datasetid1"]]][[kekmatrix[i,"datasetid2"]]],kekmatrix[i,"datasetid2"]] ~ logFCmatrixchosen[totalrownamematrix[[kekmatrix[i,"datasetid1"]]][[kekmatrix[i,"datasetid2"]]],kekmatrix[i,"datasetid1"]] - 1)
     #plot(logFCmatrixchosen[totalrownamematrix[[colnames(logFCmatrixchosen)[1]]][[colnames(logFCmatrixchosen)[2]]],1], logFCmatrixchosen[totalrownamematrix[[colnames(logFCmatrixchosen)[1]]][[colnames(logFCmatrixchosen)[2]]],2], main = paste0("Correlation: ", as.character(cormatrixsign[colnames(logFCmatrixchosen)[1], colnames(logFCmatrixchosen)[2]]), ", p-value: ", as.character(coradjpvalsign[colnames(logFCmatrixchosen)[1], colnames(logFCmatrixchosen)[2]])))
     #abline(0, plot1$coefficients[2], col = "blue", lwd = 2)
     #abline(0, kres[2]/kres[1], col = "red", lwd = 2)
@@ -597,11 +604,11 @@ for (name in names(chosencols)){
     ggheatmap = ggplot(logFCmatrixchosen[totalrownamematrix[[kekmatrix[i,"datasetid1"]]][[kekmatrix[i,"datasetid2"]]],], aes_string(x = kekmatrix[i,"datasetid1"], y = kekmatrix[i,"datasetid2"])) + geom_point() +
       geom_abline(slope = plot1$coefficients[2], intercept = 0, colour = "blue", size = 1) + 
       geom_hline(yintercept = 0) + geom_vline(xintercept = 0) +
-      geom_abline(slope = kres[2]/kres[1], intercept = 0, colour = "red", size = 1)
-    ggheatmap
-    pdf(paste0("./plots/signatureplots/", name, "/demingexample", i, ".pdf"))
+      geom_abline(slope = kres[which(colnames(logFCmatrixchosen) == kekmatrix[i, "datasetid2"])]/kres[which(colnames(logFCmatrixchosen) == kekmatrix[i, "datasetid1"])], intercept = 0, colour = "red", size = 1)
     print(ggheatmap)
-    dev.off()
+    #pdf(paste0("./plots/signatureplots/", name, "/demingexample", i, ".pdf"))
+    #print(ggheatmap)
+    #dev.off()
   }
   
   # normalize by deming coefficients:
