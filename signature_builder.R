@@ -291,6 +291,21 @@ for (colnm in colnames(categorytable)[1:3]){
 }
 categorytable[,"Total"] = categorytable[,"Mouse"] + categorytable[,"Human"] + categorytable[,"Rat"]
 
+# assessing how many genes are differentially expressed per signature:
+corgenes = list()
+for (name in names(chosencols)){
+  lol = as.data.frame(rep(0, length(rownames(logFCmatrixregr))))
+  lol = cbind(lol, rep(0, length(rownames(logFCmatrixregr))))
+  rownames(lol) = rownames(logFCmatrixregr)
+  colnames(lol) = c("countspositive", "countsnegative")
+  for (i in 1:length(chosencols[[name]])){
+    positiverownames = rownames(subset(logFCunlisted[[chosencols[[name]][i]]], logFCunlisted[[chosencols[[name]][i]]]$adj.P.Val < 0.05 & logFCunlisted[[chosencols[[name]][i]]]$logFC > 0))
+    negativerownames = rownames(subset(logFCunlisted[[chosencols[[name]][i]]], logFCunlisted[[chosencols[[name]][i]]]$adj.P.Val < 0.05 & logFCunlisted[[chosencols[[name]][i]]]$logFC < 0))
+    lol[positiverownames,]$countspositive = lol[positiverownames,]$countspositive + 1
+    lol[negativerownames,]$countsnegative = lol[negativerownames,]$countsnegative + 1
+  }
+  corgenes[[name]] = rownames(subset(lol, lol$countspositive > length(chosencols[[name]]) * 0.2 | lol$countsnegative > length(chosencols[[name]]) * 0.2))
+}
 
 ##### THIS IS FOR MANY SIGNATURES BUT ONE MINIMIZATION RUN FOR EACH SIGNATURE
 
@@ -606,9 +621,9 @@ for (name in names(chosencols)){
       geom_hline(yintercept = 0) + geom_vline(xintercept = 0) +
       geom_abline(slope = kres[which(colnames(logFCmatrixchosen) == kekmatrix[i, "datasetid2"])]/kres[which(colnames(logFCmatrixchosen) == kekmatrix[i, "datasetid1"])], intercept = 0, colour = "red", size = 1)
     print(ggheatmap)
-    #pdf(paste0("./plots/signatureplots/", name, "/demingexample", i, ".pdf"))
-    #print(ggheatmap)
-    #dev.off()
+    pdf(paste0("./plots/signatureplots/", name, "/demingexample", i, ".pdf"))
+    print(ggheatmap)
+    dev.off()
   }
   
   # normalize by deming coefficients:
@@ -632,7 +647,7 @@ for (name in names(chosencols)){
   logFCmatrixchosen$NACount = NULL
   
   # run mixed-effect model:
-  agingsignatures[[name]] = signature_builder(logFCmatrixchosen)
+  agingsignatures[[name]] = signature_builder(logFCmatrixchosen, SEmatrixchosen)
   # plot examples:
   geneids = agingsignatures[[name]] %>% rownames_to_column("Row.names") %>% top_n(-5, adj_pval) %>% column_to_rownames("Row.names")
   geneids = rownames(geneids)

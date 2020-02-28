@@ -1,4 +1,4 @@
-# mixed effect model signature builder
+# mixed effect model signature builder 2.0 (slow)
 
 signature_builder = function(logFCmatrixregr, SEmatrixregr){
   goodgenes = c()
@@ -28,6 +28,17 @@ signature_builder = function(logFCmatrixregr, SEmatrixregr){
         message(cond)
       }
     )
+    
+    for (i in 1:length(colnames(logFCmatrixregr))){
+      logFCmatrixoneout = logFCmatrixregr[,-i]
+      
+      logFC = logFCmatrixoneout[genename,]
+      logFC = logFC[!is.na(logFC)]
+      SE = SEmatrixregr[genename,]
+      SE = SE[!is.na(SE)]
+      sourcevec = as.factor(sourcedata[colnames(logFCmatrixregr)[!is.na(logFCmatrixregr[genename,])],])
+      
+    }
   }
   #rownames(signature) = totalgenes[-which(totalgenes %in% badgenes)]
   rownames(signature) = goodgenes
