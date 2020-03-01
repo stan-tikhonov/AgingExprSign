@@ -1,6 +1,6 @@
 # Deming regression minimizer
 
-deming_minimizer = function(logFCmatrixregr){
+deming_minimizer = function(logFCmatrixregr, totalrownamematrix){
   fn = function(k_no_first){
     k = c()
     k[1] = 1

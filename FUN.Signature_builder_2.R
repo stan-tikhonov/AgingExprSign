@@ -18,8 +18,23 @@ signature_builder = function(logFCmatrixregr, SEmatrixregr){
     
     tryCatch(
       {
-        mixedeffres = rma.mv(yi = logFC, V = SE^2, method = "REML", random = list(~ 1 | sourcevec))
-        signature = rbind(signature, c(mixedeffres$b[1], mixedeffres$pval))
+        mixedeffresfull = rma.mv(yi = logFC, V = SE^2, method = "REML", random = list(~ 1 | sourcevec))
+        pvalsrob = c()
+        logFCsrob = c()
+        for (i in 1:length(colnames(logFCmatrixregr))){
+          logFCmatrixoneout = logFCmatrixregr[,-i]
+          SEmatrixoneout = SEmatrixregr[,-i]
+          
+          logFC = logFCmatrixoneout[genename,]
+          logFC = logFC[!is.na(logFC)]
+          SE = SEmatrixoneout[genename,]
+          SE = SE[!is.na(SE)]
+          sourcevec = as.factor(sourcedata[colnames(logFCmatrixoneout)[!is.na(logFCmatrixoneout[genename,])],])
+          mixedeffresrob = rma.mv(yi = logFC, V = SE^2, method = "REML", random = list(~ 1 | sourcevec))
+          pvalsrob = c(pvalsrob, mixedeffresrob$pval)
+          logFCsrob = c(logFCsrob, mixedeffresrob$b[1])
+        }
+        signature = rbind(signature, c(mixedeffresfull$b[1], mixedeffresfull$pval, logFCsrob[which.max(pvalsrob)], pvalsrob[which.max(pvalsrob)], logFCsrob[which.min(pvalsrob)], pvalsrob[which.min(pvalsrob)]))
         goodgenes = c(goodgenes, genename)
       },
       error=function(cond) {
@@ -29,21 +44,14 @@ signature_builder = function(logFCmatrixregr, SEmatrixregr){
       }
     )
     
-    for (i in 1:length(colnames(logFCmatrixregr))){
-      logFCmatrixoneout = logFCmatrixregr[,-i]
-      
-      logFC = logFCmatrixoneout[genename,]
-      logFC = logFC[!is.na(logFC)]
-      SE = SEmatrixregr[genename,]
-      SE = SE[!is.na(SE)]
-      sourcevec = as.factor(sourcedata[colnames(logFCmatrixregr)[!is.na(logFCmatrixregr[genename,])],])
-      
-    }
+    
   }
   #rownames(signature) = totalgenes[-which(totalgenes %in% badgenes)]
   rownames(signature) = goodgenes
-  colnames(signature) = c("logFC", "pval")
+  colnames(signature) = c("logFC", "pval", "logFC_robust", "pval_robust", "logFC_LOO", "pval_LOO")
   
   signature$adj_pval = p.adjust(signature$pval, method = "BH")
+  signature$adj_pval_robust = p.adjust(signature$pval_robust, method = "BH")
+  signature$adj_pval_LOO = p.adjust(signature$pval_LOO, method = "BH")
   return(signature)
 }

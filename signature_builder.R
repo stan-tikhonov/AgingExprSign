@@ -135,68 +135,16 @@ logFCmatrix = as.data.frame(logFCmatrix)
 SEmatrixregr = as.data.frame(SEmatrixregr)
 logFCmatrixregr = logFCmatrix
 
-# get bad boys:
-logFCmatrix$NACount = rowSums(is.na(logFCmatrix))
-ggplot(logFCmatrix, aes(x = NACount)) + geom_density()
-
-badboys = subset(rownames(logFCmatrix), logFCmatrix$NACount >=35)
-
 # make cortestsign matrix:
 
+source("FUN.Cormatricesmaker.R")
 cormethod = "pearson"
-corpvalsign = data.frame()
-cormatrixsign = data.frame()
 thres = "750"
-for (i in 1:length(logFCunlisted)){
-  for (j in i:length(logFCunlisted)){
-    topA = logFCunlisted[[i]] %>% rownames_to_column(var = "row.names")
-    topA = topA %>% top_n(-1 * as.integer(as.character(thres)), adj.P.Val)
-    topA = topA %>% column_to_rownames(var = "row.names")
-    topB = logFCunlisted[[j]] %>% rownames_to_column(var = "row.names")
-    topB = topB %>% top_n(-1 * as.integer(as.character(thres)), adj.P.Val)
-    topB = topB %>% column_to_rownames(var = "row.names")
-    totalrownames = union(rownames(topA), rownames(topB))
-    cormatrixsign[names(logFCunlisted)[i], names(logFCunlisted)[j]] = cor(logFCunlisted[[i]][totalrownames,]$logFC, logFCunlisted[[j]][totalrownames,]$logFC, method = cormethod, use = "complete.obs")
-    cormatrixsign[names(logFCunlisted)[j], names(logFCunlisted)[i]] = cor(logFCunlisted[[i]][totalrownames,]$logFC, logFCunlisted[[j]][totalrownames,]$logFC, method = cormethod, use = "complete.obs")
-    corpvalsign[names(logFCunlisted)[i], names(logFCunlisted)[j]] = as.numeric(cor.test(logFCunlisted[[i]][totalrownames,]$logFC, logFCunlisted[[j]][totalrownames,]$logFC, method = cormethod)$p.value)
-    corpvalsign[names(logFCunlisted)[j], names(logFCunlisted)[i]] = as.numeric(cor.test(logFCunlisted[[i]][totalrownames,]$logFC, logFCunlisted[[j]][totalrownames,]$logFC, method = cormethod)$p.value)
-    #    mergedmatrix = logFCunlisted[[i]]["logFC"]
-    #    mergedmatrix = mergedmatrix %>% dplyr::rename(logFCi = logFC)
-    #    mergedmatrix = merge(mergedmatrix, logFCunlisted[[j]]["logFC"], by=0, all=TRUE)
-    #    mergedmatrix = mergedmatrix %>% column_to_rownames("Row.names")
-    #    cormatrixdenoised[names(logFCunlisted)[i], names(logFCunlisted)[j]] = round(cor(mergedmatrix[union(rownames(topA), rownames(topB)),], method = "spearman", use = "complete.obs"),2)[2,1]
-  }
-}
-
-coradjpvalsign = data.frame()
-vec = as.vector(corpvalsign[upper.tri(corpvalsign, diag = F)])
-vec = p.adjust(vec, method = "BH")
-tempmatrix = matrix(0, length(logFCunlisted), length(logFCunlisted))
-tempmatrix[upper.tri(tempmatrix, diag = F)] = vec
-tempmatrix[lower.tri(tempmatrix, diag = F)] = t(tempmatrix)[lower.tri(t(tempmatrix), diag = F)]
-#tempmatrix[lower.tri(tempmatrix, diag = F)] = vec
-#tempmatrix = t(tempmatrix)
-#tempmatrix[lower.tri(tempmatrix, diag = F)] = t(tempmatrix)[lower.tri(t(tempmatrix), diag = F)]
-coradjpvalsign = tempmatrix
-colnames(coradjpvalsign) = colnames(corpvalsign)
-rownames(coradjpvalsign) = rownames(corpvalsign)
-
-cortestsign = data.frame()
-for (colname in colnames(cormatrixsign)){
-  for (rowname in rownames(cormatrixsign)){
-    if (coradjpvalsign[rowname, colname] < 0.05){
-      if (cormatrixsign[rowname, colname] > 0.1){
-        cortestsign[rowname, colname] = 1
-      } else if (cormatrixsign[rowname, colname] < -0.1){
-        cortestsign[rowname, colname] = -1
-      } else {
-        cortestsign[rowname, colname] = 0
-      }
-    } else{
-      cortestsign[rowname, colname] = 0
-    }
-  }
-}
+res = cormatricesmaker(logFCunlisted, cormethod, signifgenesthres = thres)
+cortestsign = res$cortestsign
+cormatrixsign = res$cormatrixsign
+coradjpvalsign = res$coradjpvalsign
+corpvalsign = res$corpvalsign
 
 # normalize by sd:
 
@@ -206,71 +154,14 @@ for (i in 1:length(colnames(logFCmatrixregr))){
 }
 
 # make totalrownamematrix:
-totalrownamematrix = list()
-for (i in 1:(length(logFCunlisted)-1)){
-  for (j in (i + 1):length(logFCunlisted)){
-    topA = logFCunlisted[[i]] %>% rownames_to_column(var = "row.names")
-    topA = topA %>% top_n(-1 * as.integer(as.character(thres)), adj.P.Val)
-    topA = topA %>% column_to_rownames(var = "row.names")
-    topB = logFCunlisted[[j]] %>% rownames_to_column(var = "row.names")
-    topB = topB %>% top_n(-1 * as.integer(as.character(thres)), adj.P.Val)
-    topB = topB %>% column_to_rownames(var = "row.names")
-    totalrownames = union(rownames(topA), rownames(topB))
-    #tempdata = matrix(nrow = length(totalrownames), ncol = 2)
-    #rownames(tempdata) = totalrownames
-    #tempdata[, 1] = logFCunlisted[[i]][totalrownames,]$logFC
-    #tempdata[, 2] = logFCunlisted[[j]][totalrownames,]$logFC
-    #tempdata = na.omit(tempdata)
-    #totalrownames = rownames(tempdata)
-    rownamesA = rownames(subset(logFCunlisted[[i]], rownames(logFCunlisted[[i]]) %in% totalrownames))
-    rownamesB = rownames(subset(logFCunlisted[[j]], rownames(logFCunlisted[[j]]) %in% totalrownames))
-    totalrownamematrix[[names(logFCunlisted)[i]]][[names(logFCunlisted)[j]]] = intersect(rownamesA, rownamesB)
-    totalrownamematrix[[names(logFCunlisted)[j]]][[names(logFCunlisted)[i]]] = intersect(rownamesA, rownamesB)
-  }
-}
+source("FUN.Totalrownamemaker.R")
+totalrownamematrix = totalrownamemaker(logFCunlisted, thres)
 
 # get source table:
 sourcedata = as.data.frame(colnames(logFCmatrixregr))
 rownames(sourcedata) = colnames(logFCmatrixregr)
 colnames(sourcedata) = "kekkekkek"
 sourcedata = sourcedata %>% separate(kekkekkek, c(NA, "dataset", NA), sep = "_")
-
-logFCmatrixchosen = logFCmatrixregr
-SEmatrixchosen = SEmatrixregr
-
-##### THIS IS FOR THE COMPLETE SIGNATURE (10 MINIMIZATION RUNS)
-
-# run deming minimization:
-source("FUN.Deming_minimizer.R")
-
-# running it 10 times:
-bigres = list()
-minimums = c()
-for (i in 1:10){
-  bigres[[i]] = deming_minimizer(logFCmatrixchosen)
-  minimums = c(minimums, bigres[[i]]$minimum)
-  print(paste0("Opa! ", i, "th minimization done."))
-}
-kres = bigres[[which.min(minimums)]]$coefs
-
-# normalize by deming coefficients:
-
-for (i in 1:length(colnames(logFCmatrixchosen))){
-  SEmatrixchosen[,i] = SEmatrixchosen[,i] / kres[i]
-  logFCmatrixchosen[,i] = logFCmatrixchosen[,i] / kres[i]
-}
-
-# discard bad boys:
-'%notin%' = Negate('%in%')
-logFCmatrixshosen = subset(logFCmatrixchosen, rownames(logFCmatrixchosen) %notin% badboys)
-SEmatrixchosen = subset(SEmatrixchosen, rownames(SEmatrixchosen) %notin% badboys)
-
-# run mixed-effect model:
-
-source("FUN.Signature_builder.R")
-signature = signature_builder(logFCmatrixchosen)
-
-
 
 ##### constructing category table:
 categorytable = matrix(nrow = 6, ncol = 4)
@@ -309,24 +200,6 @@ for (name in names(chosencols)){
 
 ##### THIS IS FOR MANY SIGNATURES BUT ONE MINIMIZATION RUN FOR EACH SIGNATURE
 
-# functions for heatmaps:
-reorder_cormat <- function(cormat,method="complete"){
-  # Use correlation between variables as distance
-  dd <- as.dist((1-cormat)/2)
-  hc <- hclust(dd,method = method)
-  cormat <-cormat[hc$order, hc$order]
-}
-# Get lower triangle of the correlation matrix
-get_lower_tri<-function(cormat){
-  cormat[upper.tri(cormat)] <- NA
-  return(cormat)
-}
-# Get upper triangle of the correlation matrix
-get_upper_tri <- function(cormat){
-  cormat[lower.tri(cormat)]<- NA
-  return(cormat)
-}
-
 # prep shit:
 chosencols = list()
 chosencols[["Human"]] = colnames(logFCmatrixregr)[grepl(".*Human.*", colnames(logFCmatrixregr))]
@@ -339,6 +212,7 @@ chosencols[["All"]] = colnames(logFCmatrixregr)
 
 source("FUN.Deming_minimizer.R")
 source("FUN.Signature_builder.R")
+source("FUN.Corheatmapper.R")
 
 agingsignatures = list()
 deminglist = list()
@@ -387,179 +261,7 @@ for (name in names(deminglist)){
   print(ggplot(a.m$minimum, aes(group, value)) + geom_boxplot() + geom_jitter(aes(color = as.factor(round(minimum, 4)))))
 }
 
-# only plot examples from metafor:
-for (name in names(chosencols)){
-  logFCmatrixchosen = logFCmatrixregr[, chosencols[[name]]]
-  SEmatrixchosen = SEmatrixregr[, chosencols[[name]]]
-  # plot examples:
-  geneids = agingsignatures[[name]] %>% rownames_to_column("Row.names") %>% top_n(-5, adj_pval) %>% column_to_rownames("Row.names")
-  geneids = rownames(geneids)
-  for (i in 1:length(geneids)){
-    helpertable = as.data.frame(t(logFCmatrixchosen[geneids[i],]))
-    rownames(helpertable) = colnames(logFCmatrixchosen)
-    colnames(helpertable) = c("logFC")
-    helpertable$SE = t(SEmatrixchosen[geneids[i],])
-    helpertable$source = as.factor(sourcedata[rownames(helpertable),"dataset"])
-    helpertable$dataset = rownames(helpertable)
-    helpertable = na.omit(helpertable)
-    border = max(abs(helpertable$logFC)) + max(helpertable$SE)
-    ggheatmap = ggplot(helpertable, aes(x = dataset, y = logFC, color = source)) + geom_pointrange(aes(ymin = logFC - SE, ymax = logFC + SE)) + geom_hline(yintercept = agingsignatures[[name]][geneids[i], "logFC"], colour = "red") +
-      geom_hline(yintercept = 0) + ylim(-border, border)
-    print(ggheatmap)
-    #pdf(paste0("./plots/signatureplots/", name, "/mixedmodelexample", i, ".pdf"))
-    #print(ggheatmap)
-    #dev.off()
-  }
-}
-
-
-
-
-
-# z-test for each gene:
-agingztests = list()
-
-signature_ttester = function(logFCmatrixregr){
-  goodgenes = c()
-  signature = data.frame()
-  genenumber = 0
-  for (genename in rownames(logFCmatrixregr)){
-    genenumber = genenumber + 1
-    percentready = (genenumber/length(rownames(logFCmatrixregr))) * 100
-    if (genenumber %% 1000 == 0){
-      print(paste0("I'm on gene No. ", genenumber, " (", round(percentready, 2), "% done)"))
-    }
-    logFC = logFCmatrixregr[genename,]
-    logFC = logFC[!is.na(logFC)]
-    ttestres = t.test(logFC)
-    signature = rbind(signature, c(ttestres$estimate, ttestres$p.value))
-    goodgenes = c(goodgenes, genename)
-  }
-  #rownames(signature) = totalgenes[-which(totalgenes %in% badgenes)]
-  rownames(signature) = goodgenes
-  colnames(signature) = c("logFC", "pval")
-  
-  signature$adj_pval = p.adjust(signature$pval, method = "BH")
-  return(signature)
-}
-
-for (name in names(chosencols)){
-  # filter datasets for the individual signature:
-  logFCmatrixchosen = logFCmatrixregr[, chosencols[[name]]]
-  SEmatrixchosen = SEmatrixregr[, chosencols[[name]]]
-  
-  # get the deming coefs:
-  minimums = c()
-  for (i in 1:10){
-    #deminglist[[name]][[i]] = deming_minimizer(logFCmatrixchosen)
-    minimums = c(minimums, deminglist[[name]][[i]]$minimum)
-  }
-  kres = deminglist[[name]][[which.min(minimums)]]$coefs
-  
-  # normalize by deming coefficients:
-  
-  for (i in 1:length(colnames(logFCmatrixchosen))){
-    SEmatrixchosen[,i] = SEmatrixchosen[,i] / kres[i]
-    logFCmatrixchosen[,i] = logFCmatrixchosen[,i] / kres[i]
-  }
-  
-  # discard bad boys:
-  logFCmatrixchosen$NACount = rowSums(is.na(logFCmatrixchosen))
-  if (name != "Liver"){
-    ggplot(logFCmatrixchosen, aes(x = NACount)) + geom_density() + geom_vline(xintercept = floor(length(colnames(logFCmatrixchosen))/2))
-    goodboys = subset(rownames(logFCmatrixchosen), logFCmatrix$NACount < floor(length(colnames(logFCmatrixchosen))/2))
-  } else {
-    ggplot(logFCmatrixchosen, aes(x = NACount)) + geom_density() + geom_vline(xintercept = 4)
-    goodboys = subset(rownames(logFCmatrixchosen), logFCmatrix$NACount < 4)
-  }
-  logFCmatrixchosen = subset(logFCmatrixchosen, rownames(logFCmatrixchosen) %in% goodboys)
-  SEmatrixchosen = subset(SEmatrixchosen, rownames(SEmatrixchosen) %in% goodboys)
-  logFCmatrixchosen$NACount = NULL
-  
-  agingztests[[name]] = signature_ttester(logFCmatrixchosen)
-}
-
-
-# metafor no nothing:
-agingmetafornonothing = list()
-
-signature_metafornonothing = function(logFCmatrixregr){
-  goodgenes = c()
-  signature = data.frame()
-  genenumber = 0
-  for (genename in rownames(logFCmatrixregr)){
-    genenumber = genenumber + 1
-    percentready = (genenumber/length(rownames(logFCmatrixregr))) * 100
-    if (genenumber %% 1000 == 0){
-      print(paste0("I'm on gene No. ", genenumber, " (", round(percentready, 2), "% done)"))
-    }
-    logFC = logFCmatrixregr[genename,]
-    logFC = logFC[!is.na(logFC)]
-    SE = SEmatrixregr[genename,]
-    SE = SE[!is.na(SE)]
-    sourcevec = as.factor(sourcedata[colnames(logFCmatrixregr)[!is.na(logFCmatrixregr[genename,])],])
-    #SE = rep(1, length(logFC))
-    
-    tryCatch(
-      {
-        mixedeffres = rma.mv(yi = logFC, V = SE ^ 2, method = "REML", random = list(~ 1 | sourcevec))
-        signature = rbind(signature, c(mixedeffres$b[1], mixedeffres$pval))
-        goodgenes = c(goodgenes, genename)
-      },
-      error=function(cond) {
-        message("Fucked up")
-        message("Here's the original error message:")
-        message(cond)
-      }
-    )
-  }
-  #rownames(signature) = totalgenes[-which(totalgenes %in% badgenes)]
-  rownames(signature) = goodgenes
-  colnames(signature) = c("logFC", "pval")
-  
-  signature$adj_pval = p.adjust(signature$pval, method = "BH")
-  return(signature)
-}
-
-for (name in names(chosencols)){
-  # filter datasets for the individual signature:
-  logFCmatrixchosen = logFCmatrixregr[, chosencols[[name]]]
-  SEmatrixchosen = SEmatrixregr[, chosencols[[name]]]
-  
-  # get the deming coefs:
-  minimums = c()
-  for (i in 1:10){
-    #deminglist[[name]][[i]] = deming_minimizer(logFCmatrixchosen)
-    minimums = c(minimums, deminglist[[name]][[i]]$minimum)
-  }
-  kres = deminglist[[name]][[which.min(minimums)]]$coefs
-  
-  # normalize by deming coefficients:
-  
-  for (i in 1:length(colnames(logFCmatrixchosen))){
-    SEmatrixchosen[,i] = SEmatrixchosen[,i] / kres[i]
-    logFCmatrixchosen[,i] = logFCmatrixchosen[,i] / kres[i]
-  }
-  
-  # discard bad boys:
-  logFCmatrixchosen$NACount = rowSums(is.na(logFCmatrixchosen))
-  if (name != "Liver"){
-    ggplot(logFCmatrixchosen, aes(x = NACount)) + geom_density() + geom_vline(xintercept = floor(length(colnames(logFCmatrixchosen))/2))
-    goodboys = subset(rownames(logFCmatrixchosen), logFCmatrix$NACount < floor(length(colnames(logFCmatrixchosen))/2))
-  } else {
-    ggplot(logFCmatrixchosen, aes(x = NACount)) + geom_density() + geom_vline(xintercept = 4)
-    goodboys = subset(rownames(logFCmatrixchosen), logFCmatrix$NACount < 4)
-  }
-  logFCmatrixchosen = subset(logFCmatrixchosen, rownames(logFCmatrixchosen) %in% goodboys)
-  SEmatrixchosen = subset(SEmatrixchosen, rownames(SEmatrixchosen) %in% goodboys)
-  logFCmatrixchosen$NACount = NULL
-  
-  agingmetafornonothing[[name]] = signature_metafornonothing(logFCmatrixchosen)
-}
-
-
 ##### MAIN LOOP #####
-
 
 # main loop:
 for (name in names(chosencols)){
@@ -578,20 +280,8 @@ for (name in names(chosencols)){
       cormatrix[colnames(logFCmatrixchosen)[j], colnames(logFCmatrixchosen)[i]] = cormatrix[colnames(logFCmatrixchosen)[i], colnames(logFCmatrixchosen)[j]]
     }
   }
-  cormatrix_2 <- reorder_cormat(cormatrix, method="average")
-  cormatrix_2 = apply(cormatrix_2, 2, rev)
-  upper_tri <- get_upper_tri(cormatrix_2)
-  melted_cormat <- melt(cormatrix_2, na.rm = TRUE)
-  ggheatmap <- ggplot(melted_cormat, aes(Var2, Var1, fill = value))+
-    geom_tile(color = "white")+
-    scale_fill_gradient2(low = "blue4", high = "red4", mid = "white", 
-                         midpoint = 0, limit = c(-1,1), space = "Lab", 
-                         name="Spearman\nCorrelation") +
-    theme_minimal()+ # minimal theme
-    theme(axis.text.x = element_text(angle = 45, vjust = 1, 
-                                     size = 12, hjust = 1))+
-    coord_fixed()
-  ggheatmap
+  ggheatmap = corheatmapper(cormartix, cormethod = "spearman")
+  print(ggheatmap)
   pdf(paste0("./plots/signatureplots/", name, "/initialheatmap", ".pdf"))
   print(ggheatmap)
   dev.off()
@@ -675,8 +365,6 @@ for (name in names(chosencols)){
   significantgenematrix = logFCmatrixchosen[rownames(subset(agingsignatures[[name]], adj_pval < 0.05)),]
   cormatrix = cor(significantgenematrix, use = "pairwise.complete.obs", method = "pearson")
   
-  
-  
   #cormatrix = data.frame()
   #for (i in 1:length(colnames(logFCmatrixchosen))){
   #  cormatrix[colnames(logFCmatrixchosen)[i], colnames(logFCmatrixchosen)[i]] = 1
@@ -687,21 +375,8 @@ for (name in names(chosencols)){
   #    cormatrix[colnames(logFCmatrixchosen)[j], colnames(logFCmatrixchosen)[i]] = cormatrix[colnames(logFCmatrixchosen)[i], colnames(logFCmatrixchosen)[j]]
   #  }
   #}
-  cormatrix_2 <- reorder_cormat(cormatrix, method="average")
-  cormatrix_2 = apply(cormatrix_2, 2, rev)
-  upper_tri <- get_upper_tri(cormatrix_2)
-  melted_cormat <- melt(cormatrix_2, na.rm = TRUE)
-  ggheatmap <- ggplot(melted_cormat, aes(Var2, Var1, fill = value))+
-    geom_tile(color = "white")+
-    scale_fill_gradient2(low = "blue4", high = "red4", mid = "white", 
-                         midpoint = 0, limit = c(-1,1), space = "Lab", 
-                         name="Spearman\nCorrelation") +
-    theme_minimal()+ # minimal theme
-    theme(axis.text.x = element_text(angle = 45, vjust = 1, 
-                                     size = 12, hjust = 1))+
-    coord_fixed()
-  ggheatmap
-  
+  ggheatmap = corheatmapper(cormartix, cormethod = "spearman")
+  print(ggheatmap)
   pdf(paste0("./plots/signatureplots/", name, "/verificationheatmap", ".pdf"))
   print(ggheatmap)
   dev.off()
@@ -728,9 +403,196 @@ for (name in names(chosencols)){
   
   print(paste0("I'm done with the ", name, " signature."))
 }
-
 save(agingsignatures, file = "agingsignatures.RData")
 
+# this is for LOO and robust signature (no plots):
+
+source("FUN.Signature_builder_2.R")
+agingsignatures_v2 = list()
+# main loop:
+for (name in names(chosencols)){
+  # filter datasets for the individual signature:
+  logFCmatrixchosen = logFCmatrixregr[, chosencols[[name]]]
+  SEmatrixchosen = SEmatrixregr[, chosencols[[name]]]
+  
+  # get the deming coefs:
+  minimums = c()
+  for (i in 1:10){
+    #deminglist[[name]][[i]] = deming_minimizer(logFCmatrixchosen)
+    minimums = c(minimums, deminglist[[name]][[i]]$minimum)
+  }
+  kres = deminglist[[name]][[which.min(minimums)]]$coefs
+  
+  # normalize by deming coefficients:
+  
+  for (i in 1:length(colnames(logFCmatrixchosen))){
+    SEmatrixchosen[,i] = SEmatrixchosen[,i] / kres[i]
+    logFCmatrixchosen[,i] = logFCmatrixchosen[,i] / kres[i]
+  }
+  
+  # discard bad boys:
+  logFCmatrixchosen$NACount = rowSums(is.na(logFCmatrixchosen))
+  if (name != "Liver"){
+    ggplot(logFCmatrixchosen, aes(x = NACount)) + geom_density() + geom_vline(xintercept = floor(length(colnames(logFCmatrixchosen))/2))
+    goodboys = subset(rownames(logFCmatrixchosen), logFCmatrix$NACount < floor(length(colnames(logFCmatrixchosen))/2))
+  } else {
+    ggplot(logFCmatrixchosen, aes(x = NACount)) + geom_density() + geom_vline(xintercept = 4)
+    goodboys = subset(rownames(logFCmatrixchosen), logFCmatrix$NACount < 4)
+  }
+  logFCmatrixchosen = subset(logFCmatrixchosen, rownames(logFCmatrixchosen) %in% goodboys)
+  SEmatrixchosen = subset(SEmatrixchosen, rownames(SEmatrixchosen) %in% goodboys)
+  logFCmatrixchosen$NACount = NULL
+  
+  # run mixed-effect model:
+  agingsignatures_v2[[name]] = signature_builder(logFCmatrixchosen, SEmatrixchosen)
+}
+save(agingsignatures_v2, file = "agingsignatures_v2.RData")
+
+
+
+
+
+################################################ L E G A C Y   C O D E ##########################################
+
+# metafor no nothing:
+agingmetafornonothing = list()
+
+signature_metafornonothing = function(logFCmatrixregr){
+  goodgenes = c()
+  signature = data.frame()
+  genenumber = 0
+  for (genename in rownames(logFCmatrixregr)){
+    genenumber = genenumber + 1
+    percentready = (genenumber/length(rownames(logFCmatrixregr))) * 100
+    if (genenumber %% 1000 == 0){
+      print(paste0("I'm on gene No. ", genenumber, " (", round(percentready, 2), "% done)"))
+    }
+    logFC = logFCmatrixregr[genename,]
+    logFC = logFC[!is.na(logFC)]
+    SE = SEmatrixregr[genename,]
+    SE = SE[!is.na(SE)]
+    sourcevec = as.factor(sourcedata[colnames(logFCmatrixregr)[!is.na(logFCmatrixregr[genename,])],])
+    #SE = rep(1, length(logFC))
+    
+    tryCatch(
+      {
+        mixedeffres = rma.mv(yi = logFC, V = SE ^ 2, method = "REML", random = list(~ 1 | sourcevec))
+        signature = rbind(signature, c(mixedeffres$b[1], mixedeffres$pval))
+        goodgenes = c(goodgenes, genename)
+      },
+      error=function(cond) {
+        message("Fucked up")
+        message("Here's the original error message:")
+        message(cond)
+      }
+    )
+  }
+  #rownames(signature) = totalgenes[-which(totalgenes %in% badgenes)]
+  rownames(signature) = goodgenes
+  colnames(signature) = c("logFC", "pval")
+  
+  signature$adj_pval = p.adjust(signature$pval, method = "BH")
+  return(signature)
+}
+
+for (name in names(chosencols)){
+  # filter datasets for the individual signature:
+  logFCmatrixchosen = logFCmatrixregr[, chosencols[[name]]]
+  SEmatrixchosen = SEmatrixregr[, chosencols[[name]]]
+  
+  # get the deming coefs:
+  minimums = c()
+  for (i in 1:10){
+    #deminglist[[name]][[i]] = deming_minimizer(logFCmatrixchosen)
+    minimums = c(minimums, deminglist[[name]][[i]]$minimum)
+  }
+  kres = deminglist[[name]][[which.min(minimums)]]$coefs
+  
+  # normalize by deming coefficients:
+  
+  for (i in 1:length(colnames(logFCmatrixchosen))){
+    SEmatrixchosen[,i] = SEmatrixchosen[,i] / kres[i]
+    logFCmatrixchosen[,i] = logFCmatrixchosen[,i] / kres[i]
+  }
+  
+  # discard bad boys:
+  logFCmatrixchosen$NACount = rowSums(is.na(logFCmatrixchosen))
+  if (name != "Liver"){
+    ggplot(logFCmatrixchosen, aes(x = NACount)) + geom_density() + geom_vline(xintercept = floor(length(colnames(logFCmatrixchosen))/2))
+    goodboys = subset(rownames(logFCmatrixchosen), logFCmatrix$NACount < floor(length(colnames(logFCmatrixchosen))/2))
+  } else {
+    ggplot(logFCmatrixchosen, aes(x = NACount)) + geom_density() + geom_vline(xintercept = 4)
+    goodboys = subset(rownames(logFCmatrixchosen), logFCmatrix$NACount < 4)
+  }
+  logFCmatrixchosen = subset(logFCmatrixchosen, rownames(logFCmatrixchosen) %in% goodboys)
+  SEmatrixchosen = subset(SEmatrixchosen, rownames(SEmatrixchosen) %in% goodboys)
+  logFCmatrixchosen$NACount = NULL
+  
+  agingmetafornonothing[[name]] = signature_metafornonothing(logFCmatrixchosen)
+}
+
+# z-test for each gene:
+agingztests = list()
+
+signature_ttester = function(logFCmatrixregr){
+  goodgenes = c()
+  signature = data.frame()
+  genenumber = 0
+  for (genename in rownames(logFCmatrixregr)){
+    genenumber = genenumber + 1
+    percentready = (genenumber/length(rownames(logFCmatrixregr))) * 100
+    if (genenumber %% 1000 == 0){
+      print(paste0("I'm on gene No. ", genenumber, " (", round(percentready, 2), "% done)"))
+    }
+    logFC = logFCmatrixregr[genename,]
+    logFC = logFC[!is.na(logFC)]
+    ttestres = t.test(logFC)
+    signature = rbind(signature, c(ttestres$estimate, ttestres$p.value))
+    goodgenes = c(goodgenes, genename)
+  }
+  #rownames(signature) = totalgenes[-which(totalgenes %in% badgenes)]
+  rownames(signature) = goodgenes
+  colnames(signature) = c("logFC", "pval")
+  
+  signature$adj_pval = p.adjust(signature$pval, method = "BH")
+  return(signature)
+}
+
+for (name in names(chosencols)){
+  # filter datasets for the individual signature:
+  logFCmatrixchosen = logFCmatrixregr[, chosencols[[name]]]
+  SEmatrixchosen = SEmatrixregr[, chosencols[[name]]]
+  
+  # get the deming coefs:
+  minimums = c()
+  for (i in 1:10){
+    #deminglist[[name]][[i]] = deming_minimizer(logFCmatrixchosen)
+    minimums = c(minimums, deminglist[[name]][[i]]$minimum)
+  }
+  kres = deminglist[[name]][[which.min(minimums)]]$coefs
+  
+  # normalize by deming coefficients:
+  
+  for (i in 1:length(colnames(logFCmatrixchosen))){
+    SEmatrixchosen[,i] = SEmatrixchosen[,i] / kres[i]
+    logFCmatrixchosen[,i] = logFCmatrixchosen[,i] / kres[i]
+  }
+  
+  # discard bad boys:
+  logFCmatrixchosen$NACount = rowSums(is.na(logFCmatrixchosen))
+  if (name != "Liver"){
+    ggplot(logFCmatrixchosen, aes(x = NACount)) + geom_density() + geom_vline(xintercept = floor(length(colnames(logFCmatrixchosen))/2))
+    goodboys = subset(rownames(logFCmatrixchosen), logFCmatrix$NACount < floor(length(colnames(logFCmatrixchosen))/2))
+  } else {
+    ggplot(logFCmatrixchosen, aes(x = NACount)) + geom_density() + geom_vline(xintercept = 4)
+    goodboys = subset(rownames(logFCmatrixchosen), logFCmatrix$NACount < 4)
+  }
+  logFCmatrixchosen = subset(logFCmatrixchosen, rownames(logFCmatrixchosen) %in% goodboys)
+  SEmatrixchosen = subset(SEmatrixchosen, rownames(SEmatrixchosen) %in% goodboys)
+  logFCmatrixchosen$NACount = NULL
+  
+  agingztests[[name]] = signature_ttester(logFCmatrixchosen)
+}
 
 # correlation heatmap
 
