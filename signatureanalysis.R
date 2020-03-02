@@ -81,13 +81,24 @@ print(ggheatmap)
 
 # Venn diagrams
 
-chisqtable = matrix(nrow = 2, ncol = 2)
-chisqtable[1,1] = length(intersect(rownames(subset(agingsignatures[["Human"]], adj_pval > 0.05)), rownames(subset(agingsignatures[["Rat"]], adj_pval > 0.05))))
-chisqtable[1,2] = length(intersect(rownames(subset(agingsignatures[["Human"]], adj_pval > 0.05)), rownames(subset(agingsignatures[["Rat"]], adj_pval < 0.05))))
-chisqtable[2,1] = length(intersect(rownames(subset(agingsignatures[["Human"]], adj_pval < 0.05)), rownames(subset(agingsignatures[["Rat"]], adj_pval > 0.05))))
-chisqtable[2,2] = length(intersect(rownames(subset(agingsignatures[["Human"]], adj_pval < 0.05)), rownames(subset(agingsignatures[["Rat"]], adj_pval < 0.05))))
-
-fisher.test()
+vennpvals = as.data.frame(t(c(1, 1, 1, 1)))
+for (i in 1:(length(names(agingsignatures))-1)){
+  for (j in (i+1):length(names(agingsignatures))){
+    chisqtable = matrix(nrow = 2, ncol = 2)
+    chisqtable[1,1] = length(intersect(rownames(subset(agingsignatures[[names(agingsignatures)[i]]], adj_pval > 0.05, logFC < 0)), rownames(subset(agingsignatures[[names(agingsignatures)[j]]], adj_pval > 0.05, logFC < 0))))
+    chisqtable[1,2] = length(intersect(rownames(subset(agingsignatures[[names(agingsignatures)[i]]], adj_pval > 0.05, logFC < 0)), rownames(subset(agingsignatures[[names(agingsignatures)[j]]], adj_pval < 0.05, logFC < 0))))
+    chisqtable[2,1] = length(intersect(rownames(subset(agingsignatures[[names(agingsignatures)[i]]], adj_pval < 0.05, logFC < 0)), rownames(subset(agingsignatures[[names(agingsignatures)[j]]], adj_pval > 0.05, logFC < 0))))
+    chisqtable[2,2] = length(intersect(rownames(subset(agingsignatures[[names(agingsignatures)[i]]], adj_pval < 0.05, logFC < 0)), rownames(subset(agingsignatures[[names(agingsignatures)[j]]], adj_pval < 0.05, logFC < 0))))
+    vennpvals = rbind(pvals, c(names(agingsignatures)[i], names(agingsignatures)[j], fisher.test(chisqtable)$p.value, "down"))
+    
+    chisqtable = matrix(nrow = 2, ncol = 2)
+    chisqtable[1,1] = length(intersect(rownames(subset(agingsignatures[[names(agingsignatures)[i]]], adj_pval > 0.05, logFC > 0)), rownames(subset(agingsignatures[[names(agingsignatures)[j]]], adj_pval > 0.05, logFC > 0))))
+    chisqtable[1,2] = length(intersect(rownames(subset(agingsignatures[[names(agingsignatures)[i]]], adj_pval > 0.05, logFC > 0)), rownames(subset(agingsignatures[[names(agingsignatures)[j]]], adj_pval < 0.05, logFC > 0))))
+    chisqtable[2,1] = length(intersect(rownames(subset(agingsignatures[[names(agingsignatures)[i]]], adj_pval < 0.05, logFC > 0)), rownames(subset(agingsignatures[[names(agingsignatures)[j]]], adj_pval > 0.05, logFC > 0))))
+    chisqtable[2,2] = length(intersect(rownames(subset(agingsignatures[[names(agingsignatures)[i]]], adj_pval < 0.05, logFC > 0)), rownames(subset(agingsignatures[[names(agingsignatures)[j]]], adj_pval < 0.05, logFC > 0))))
+    vennpvals = rbind(pvals, c(names(agingsignatures)[i], names(agingsignatures)[j], fisher.test(chisqtable)$p.value, "up"))
+  }
+}
 
 venn.diagram(
   x = list(rownames(subset(agingsignatures[["Human"]], logFC < 0 & adj_pval < 0.05)), rownames(subset(agingsignatures[["Rat"]], logFC < 0 & adj_pval < 0.05)), rownames(subset(agingsignatures[["Mouse"]], logFC < 0 & adj_pval < 0.05))),
@@ -95,6 +106,7 @@ venn.diagram(
   filename = 'plots/signatureplots/venn_diagramm_species_down.png', imagetype = "png",  
   output=TRUE
 )
+
 venn.diagram(
   x = list(rownames(subset(agingsignatures[["Human"]], logFC > 0 & adj_pval < 0.05)), rownames(subset(agingsignatures[["Rat"]], logFC > 0 & adj_pval < 0.05)), rownames(subset(agingsignatures[["Mouse"]], logFC > 0 & adj_pval < 0.05))),
   category.names = c("Human" , "Rat", "Mouse"),
@@ -113,4 +125,22 @@ venn.diagram(
   filename = 'plots/signatureplots/venn_diagramm_tissues_up.png', imagetype = "png",  
   output=TRUE
 )
+
+# preparing data for GSEA:
+
+for (name in names(agingsignatures)){
+  positive = agingsignatures[[name]] %>% rownames_to_column("Row.names") %>% filter(logFC > 0) %>% arrange(adj_pval) %>% column_to_rownames("Row.names")
+  negative = agingsignatures[[name]] %>% rownames_to_column("Row.names") %>% filter(logFC < 0) %>% arrange(desc(adj_pval)) %>% column_to_rownames("Row.names")
+  positive$adj_pval = abs(log(positive$adj_pval))
+  negative$adj_pval = abs(log(negative$adj_pval)) * -1
+  tableforgsea = rbind(positive, negative)
+  tableforgsea = tableforgsea["adj_pval"]
+  tableforgsea = tableforgsea %>% rownames_to_column("Row.names")
+  colnames(tableforgsea) = NULL
+  write.table(tableforgsea, file = paste0("GSEA_", name, ".gct"))
+}
+
+
+
+
 
