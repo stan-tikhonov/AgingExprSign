@@ -6,6 +6,8 @@ load("agingsignatures.RData")
 library(tidyverse)
 library(reshape2)
 library(VennDiagram)
+library(annotate)
+library(org.Hs.eg.db)
 
 ##### subgroup analysis
 
@@ -128,14 +130,23 @@ venn.diagram(
 
 # preparing data for GSEA:
 
+source("FUN.Entrez_converter.R")
+agingsignatures_for_gsea = list()
 for (name in names(agingsignatures)){
-  positive = agingsignatures[[name]] %>% rownames_to_column("Row.names") %>% filter(logFC > 0) %>% arrange(adj_pval) %>% column_to_rownames("Row.names")
-  negative = agingsignatures[[name]] %>% rownames_to_column("Row.names") %>% filter(logFC < 0) %>% arrange(desc(adj_pval)) %>% column_to_rownames("Row.names")
+  agingsignatures_for_gsea[[name]] = entrez_converter(agingsignatures[[name]], from = "Mouse", to = "Human")
+  symbols = getSYMBOL(rownames(agingsignatures_for_gsea[[name]]), data = "org.Hs.eg.db")
+  agingsignatures_for_gsea[[name]]$genesymbol = symbols[rownames(agingsignatures_for_gsea[[name]])]
+}
+
+
+for (name in names(agingsignatures_for_gsea)){
+  positive = agingsignatures_for_gsea[[name]] %>% filter(logFC > 0) %>% arrange(adj_pval)
+  negative = agingsignatures_for_gsea[[name]] %>% filter(logFC < 0) %>% arrange(desc(adj_pval))
   positive$adj_pval = abs(log(positive$adj_pval))
   negative$adj_pval = abs(log(negative$adj_pval)) * -1
   tableforgsea = rbind(positive, negative)
-  tableforgsea = tableforgsea["adj_pval"]
-  tableforgsea = tableforgsea %>% rownames_to_column("Row.names")
+  tableforgsea = tableforgsea[c("genesymbol","adj_pval")]
+  rownames(tableforgsea) = NULL
   colnames(tableforgsea) = NULL
   write.table(tableforgsea, file = paste0("GSEA_", name, ".gct"))
 }
