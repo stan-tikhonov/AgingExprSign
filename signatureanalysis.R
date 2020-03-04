@@ -148,7 +148,7 @@ for (name in names(agingsignatures_for_gsea)){
   tableforgsea = tableforgsea[c("genesymbol","adj_pval")]
   rownames(tableforgsea) = NULL
   colnames(tableforgsea) = NULL
-  write.table(tableforgsea, file = paste0("GSEA_", name, ".gct"))
+  write.table(tableforgsea, file = paste0("GSEA_", name, ".rnk"), row.names = F, quote = F, sep = "\t")
 }
 
 
