@@ -407,8 +407,8 @@ save(agingsignatures, file = "agingsignatures.RData")
 
 # this is for LOO and robust signature (no plots):
 
-source("FUN.Signature_builder_2.R")
-agingsignatures_v2 = list()
+source("FUN.Signature_builder_3.R")
+agingsignatures_v3 = list()
 # main loop:
 for (name in names(chosencols)){
   # filter datasets for the individual signature:
@@ -444,9 +444,9 @@ for (name in names(chosencols)){
   logFCmatrixchosen$NACount = NULL
   
   # run mixed-effect model:
-  agingsignatures_v2[[name]] = signature_builder(logFCmatrixchosen, SEmatrixchosen)
+  agingsignatures_v3[[name]] = signature_builder(logFCmatrixchosen, SEmatrixchosen, name)
 }
-save(agingsignatures_v2, file = "agingsignatures_v2.RData")
+save(agingsignatures_v3, file = "agingsignatures_v3.RData")
 
 
 
