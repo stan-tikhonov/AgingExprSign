@@ -15,8 +15,8 @@ signature_builder = function(logFCmatrixregr, SEmatrixregr, name){
     SE = SEmatrixregr[genename,]
     SE = SE[!is.na(SE)]
     sourcevec = as.factor(sourcedata[colnames(logFCmatrixregr)[!is.na(logFCmatrixregr[genename,])],])
-    tissuevec = as.factor(sub("([^_]+)_([^_]+)_([^_]+)_.*", "\\3", colnames(logFCmatrixregr)))
-    speciesvec = as.factor(sub("([^_]+)_([^_]+)_([^_]+)_.*", "\\1", colnames(logFCmatrixregr)))
+    tissuevec = as.factor(sub("(Cerebellum|Frontalcortex|OB)", "Brain", sub("([^_]+)_([^_]+)_([^_]+)_.*", "\\3", colnames(logFCmatrixregr)[!is.na(logFCmatrixregr[genename,])])))
+    speciesvec = as.factor(sub("([^_]+)_([^_]+)_([^_]+)_.*", "\\1", colnames(logFCmatrixregr)[!is.na(logFCmatrixregr[genename,])]))
     
     
     tryCatch(
@@ -39,8 +39,9 @@ signature_builder = function(logFCmatrixregr, SEmatrixregr, name){
           SE = SEmatrixoneout[genename,]
           SE = SE[!is.na(SE)]
           sourcevec = as.factor(sourcedata[colnames(logFCmatrixoneout)[!is.na(logFCmatrixoneout[genename,])],])
-          tissuevec = as.factor(sub("([^_]+)_([^_]+)_([^_]+)_.*", "\\3", colnames(logFCmatrixoneout)))
-          speciesvec = as.factor(sub("([^_]+)_([^_]+)_([^_]+)_.*", "\\1", colnames(logFCmatrixoneout)))
+          tissuevec = as.factor(sub("(Cerebellum|Frontalcortex|OB)", "Brain", sub("([^_]+)_([^_]+)_([^_]+)_.*", "\\3", colnames(logFCmatrixoneout)[!is.na(logFCmatrixoneout[genename,])])))
+          speciesvec = as.factor(sub("([^_]+)_([^_]+)_([^_]+)_.*", "\\1", colnames(logFCmatrixoneout)[!is.na(logFCmatrixoneout[genename,])]))
+          #print(paste0("Source: ", length(sourcevec), ", tissue: ", length(tissuevec)))
           if (name %in% c("Brain", "Muscle", "Liver")){
             mixedeffresrob = rma.mv(yi = logFC, V = SE^2, method = "REML", random = list(~ 1 | sourcevec, ~ 1 | speciesvec))
           } else if(name %in% c("Human", "Rat", "Mouse")){

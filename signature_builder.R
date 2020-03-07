@@ -237,6 +237,9 @@ for (name in names(chosencols)){
   print(paste0("I'm done with ", name))
 } 
 
+# or load its results:
+load("deminglist.RData")
+
 # visualisation of coef distributions:
 for (name in names(deminglist)){
   # here a is coefs and b is minimums
@@ -327,10 +330,10 @@ for (name in names(chosencols)){
   logFCmatrixchosen$NACount = rowSums(is.na(logFCmatrixchosen))
   if (name != "Liver"){
     ggplot(logFCmatrixchosen, aes(x = NACount)) + geom_density() + geom_vline(xintercept = floor(length(colnames(logFCmatrixchosen))/2))
-    goodboys = subset(rownames(logFCmatrixchosen), logFCmatrix$NACount < floor(length(colnames(logFCmatrixchosen))/2))
+    goodboys = subset(rownames(logFCmatrixchosen), logFCmatrixchosen$NACount < floor(length(colnames(logFCmatrixchosen))/2))
   } else {
     ggplot(logFCmatrixchosen, aes(x = NACount)) + geom_density() + geom_vline(xintercept = 4)
-    goodboys = subset(rownames(logFCmatrixchosen), logFCmatrix$NACount < 4)
+    goodboys = subset(rownames(logFCmatrixchosen), logFCmatrixchosen$NACount < 4)
   }
   logFCmatrixchosen = subset(logFCmatrixchosen, rownames(logFCmatrixchosen) %in% goodboys)
   SEmatrixchosen = subset(SEmatrixchosen, rownames(SEmatrixchosen) %in% goodboys)
@@ -434,10 +437,10 @@ for (name in names(chosencols)){
   logFCmatrixchosen$NACount = rowSums(is.na(logFCmatrixchosen))
   if (name != "Liver"){
     ggplot(logFCmatrixchosen, aes(x = NACount)) + geom_density() + geom_vline(xintercept = floor(length(colnames(logFCmatrixchosen))/2))
-    goodboys = subset(rownames(logFCmatrixchosen), logFCmatrix$NACount < floor(length(colnames(logFCmatrixchosen))/2))
+    goodboys = subset(rownames(logFCmatrixchosen), logFCmatrixchosen$NACount < floor(length(colnames(logFCmatrixchosen))/2))
   } else {
     ggplot(logFCmatrixchosen, aes(x = NACount)) + geom_density() + geom_vline(xintercept = 4)
-    goodboys = subset(rownames(logFCmatrixchosen), logFCmatrix$NACount < 4)
+    goodboys = subset(rownames(logFCmatrixchosen), logFCmatrixchosen$NACount < 4)
   }
   logFCmatrixchosen = subset(logFCmatrixchosen, rownames(logFCmatrixchosen) %in% goodboys)
   SEmatrixchosen = subset(SEmatrixchosen, rownames(SEmatrixchosen) %in% goodboys)
