@@ -448,6 +448,7 @@ for (name in names(chosencols)){
   
   # run mixed-effect model:
   agingsignatures_v3[[name]] = signature_builder(logFCmatrixchosen, SEmatrixchosen, name)
+  print(paste0("I'm done with ", name))
 }
 save(agingsignatures_v3, file = "agingsignatures_v3.RData")
 
