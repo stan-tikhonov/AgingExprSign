@@ -452,6 +452,144 @@ for (name in names(chosencols)){
 }
 save(agingsignatures_v3, file = "agingsignatures_v3.RData")
 
+# this is only for plots:
+for (name in names(chosencols)){
+  # filter datasets for the individual signature:
+  logFCmatrixchosen = logFCmatrixregr[, chosencols[[name]]]
+  SEmatrixchosen = SEmatrixregr[, chosencols[[name]]]
+  
+  # plot correlation heatmap:
+  cormatrix = data.frame()
+  for (i in 1:length(colnames(logFCmatrixchosen))){
+    cormatrix[colnames(logFCmatrixchosen)[i], colnames(logFCmatrixchosen)[i]] = 1
+  }
+  for (i in 1:(length(colnames(logFCmatrixchosen))-1)){
+    for (j in (i+1):length(colnames(logFCmatrixchosen))){
+      cormatrix[colnames(logFCmatrixchosen)[i], colnames(logFCmatrixchosen)[j]] = cor(logFCmatrixchosen[totalrownamematrix[[colnames(logFCmatrixchosen)[i]]][[colnames(logFCmatrixchosen)[j]]],i], logFCmatrixchosen[totalrownamematrix[[colnames(logFCmatrixchosen)[i]]][[colnames(logFCmatrixchosen)[j]]],j], method = "spearman", use = "complete.obs")
+      cormatrix[colnames(logFCmatrixchosen)[j], colnames(logFCmatrixchosen)[i]] = cormatrix[colnames(logFCmatrixchosen)[i], colnames(logFCmatrixchosen)[j]]
+    }
+  }
+  ggheatmap = corheatmapper(cormatrix, cormethod = "spearman")
+  print(ggheatmap)
+  pdf(paste0("./plots/signatureplots/", name, "/initialheatmap", ".pdf"))
+  print(ggheatmap)
+  dev.off()
+  
+  # get the deming coefs:
+  minimums = c()
+  for (i in 1:10){
+    #deminglist[[name]][[i]] = deming_minimizer(logFCmatrixchosen)
+    minimums = c(minimums, deminglist[[name]][[i]]$minimum)
+  }
+  kres = deminglist[[name]][[which.min(minimums)]]$coefs
+  
+  # plot exapmles:
+  kekmatrix = cormatrixsign[chosencols[[name]], chosencols[[name]]] %>% rownames_to_column("datasetid1")
+  kekmatrix = gather(kekmatrix, datasetid2, corvalue, -datasetid1)
+  kekmatrix$corvalue = as.numeric(as.character(kekmatrix$corvalue))
+  kekmatrix = kekmatrix %>% filter(corvalue != 1) %>% top_n(10, corvalue) %>% distinct(corvalue, .keep_all = T)
+  
+  for (i in 1:length(rownames(kekmatrix))){
+    plot1 = deming(logFCmatrixchosen[totalrownamematrix[[kekmatrix[i,"datasetid1"]]][[kekmatrix[i,"datasetid2"]]],kekmatrix[i,"datasetid2"]] ~ logFCmatrixchosen[totalrownamematrix[[kekmatrix[i,"datasetid1"]]][[kekmatrix[i,"datasetid2"]]],kekmatrix[i,"datasetid1"]] - 1)
+    #plot(logFCmatrixchosen[totalrownamematrix[[colnames(logFCmatrixchosen)[1]]][[colnames(logFCmatrixchosen)[2]]],1], logFCmatrixchosen[totalrownamematrix[[colnames(logFCmatrixchosen)[1]]][[colnames(logFCmatrixchosen)[2]]],2], main = paste0("Correlation: ", as.character(cormatrixsign[colnames(logFCmatrixchosen)[1], colnames(logFCmatrixchosen)[2]]), ", p-value: ", as.character(coradjpvalsign[colnames(logFCmatrixchosen)[1], colnames(logFCmatrixchosen)[2]])))
+    #abline(0, plot1$coefficients[2], col = "blue", lwd = 2)
+    #abline(0, kres[2]/kres[1], col = "red", lwd = 2)
+    
+    ggheatmap = ggplot(logFCmatrixchosen[totalrownamematrix[[kekmatrix[i,"datasetid1"]]][[kekmatrix[i,"datasetid2"]]],], aes_string(x = kekmatrix[i,"datasetid1"], y = kekmatrix[i,"datasetid2"])) + geom_point() +
+      geom_abline(slope = plot1$coefficients[2], intercept = 0, colour = "blue", size = 1) + 
+      geom_hline(yintercept = 0) + geom_vline(xintercept = 0) +
+      geom_abline(slope = kres[which(colnames(logFCmatrixchosen) == kekmatrix[i, "datasetid2"])]/kres[which(colnames(logFCmatrixchosen) == kekmatrix[i, "datasetid1"])], intercept = 0, colour = "red", size = 1)
+    print(ggheatmap)
+    pdf(paste0("./plots/signatureplots/", name, "/demingexample", i, ".pdf"))
+    print(ggheatmap)
+    dev.off()
+  }
+  
+  # normalize by deming coefficients:
+  
+  for (i in 1:length(colnames(logFCmatrixchosen))){
+    SEmatrixchosen[,i] = SEmatrixchosen[,i] / kres[i]
+    logFCmatrixchosen[,i] = logFCmatrixchosen[,i] / kres[i]
+  }
+  
+  # discard bad boys:
+  logFCmatrixchosen$NACount = rowSums(is.na(logFCmatrixchosen))
+  if (name != "Liver"){
+    ggplot(logFCmatrixchosen, aes(x = NACount)) + geom_density() + geom_vline(xintercept = floor(length(colnames(logFCmatrixchosen))/2))
+    goodboys = subset(rownames(logFCmatrixchosen), logFCmatrixchosen$NACount < floor(length(colnames(logFCmatrixchosen))/2))
+  } else {
+    ggplot(logFCmatrixchosen, aes(x = NACount)) + geom_density() + geom_vline(xintercept = 4)
+    goodboys = subset(rownames(logFCmatrixchosen), logFCmatrixchosen$NACount < 4)
+  }
+  logFCmatrixchosen = subset(logFCmatrixchosen, rownames(logFCmatrixchosen) %in% goodboys)
+  SEmatrixchosen = subset(SEmatrixchosen, rownames(SEmatrixchosen) %in% goodboys)
+  logFCmatrixchosen$NACount = NULL
+  
+  # plot examples:
+  geneids = agingsignatures_v3[[name]] %>% rownames_to_column("Row.names") %>% top_n(-5, adj_pval) %>% column_to_rownames("Row.names")
+  geneids = rownames(geneids)
+  for (i in 1:length(geneids)){
+    helpertable = as.data.frame(t(logFCmatrixchosen[geneids[i],]))
+    rownames(helpertable) = colnames(logFCmatrixchosen)
+    colnames(helpertable) = c("logFC")
+    helpertable$SE = t(SEmatrixchosen[geneids[i],])
+    helpertable$source = as.factor(sourcedata[rownames(helpertable),"dataset"])
+    helpertable$dataset = rownames(helpertable)
+    helpertable = na.omit(helpertable)
+    border = max(abs(helpertable$logFC)) + max(helpertable$SE)
+    ggheatmap = ggplot(helpertable, aes(x = dataset, y = logFC, color = source)) + geom_pointrange(aes(ymin = logFC - SE, ymax = logFC + SE)) + geom_hline(yintercept = agingsignatures_v3[[name]][geneids[i], "logFC"], colour = "red") +
+      geom_hline(yintercept = 0) + ylim(-border, border)
+    ggheatmap
+    pdf(paste0("./plots/signatureplots/", name, "/mixedmodelexample", i, ".pdf"))
+    print(ggheatmap)
+    dev.off()
+  }
+  
+  # plot verification cor heatmap:
+  logFCmatrixchosen = merge(logFCmatrixchosen, agingsignatures_v3[[name]]["logFC"], by = "row.names", all = TRUE)
+  colnames(logFCmatrixchosen)[which(colnames(logFCmatrixchosen) == "logFC")] = paste0(name, "_signature")
+  logFCmatrixchosen = logFCmatrixchosen %>% column_to_rownames(var = "Row.names")
+  significantgenematrix = logFCmatrixchosen[rownames(subset(agingsignatures_v3[[name]], adj_pval < 0.05)),]
+  cormatrix = cor(significantgenematrix, use = "pairwise.complete.obs", method = "pearson")
+  
+  #cormatrix = data.frame()
+  #for (i in 1:length(colnames(logFCmatrixchosen))){
+  #  cormatrix[colnames(logFCmatrixchosen)[i], colnames(logFCmatrixchosen)[i]] = 1
+  #}
+  #for (i in 1:(length(colnames(logFCmatrixchosen))-1)){
+  #  for (j in (i+1):length(colnames(logFCmatrixchosen))){
+  #    cormatrix[colnames(logFCmatrixchosen)[i], colnames(logFCmatrixchosen)[j]] = cor(logFCmatrixchosen[totalrownamematrix[[colnames(logFCmatrixchosen)[i]]][[colnames(logFCmatrixchosen)[j]]],i], logFCmatrixchosen[totalrownamematrix[[colnames(logFCmatrixchosen)[i]]][[colnames(logFCmatrixchosen)[j]]],j], method = "spearman", use = "complete.obs")
+  #    cormatrix[colnames(logFCmatrixchosen)[j], colnames(logFCmatrixchosen)[i]] = cormatrix[colnames(logFCmatrixchosen)[i], colnames(logFCmatrixchosen)[j]]
+  #  }
+  #}
+  ggheatmap = corheatmapper(cormatrix, cormethod = "spearman")
+  print(ggheatmap)
+  pdf(paste0("./plots/signatureplots/", name, "/verificationheatmap", ".pdf"))
+  print(ggheatmap)
+  dev.off()
+  
+  # plot a verification heatmap by gene
+  significantgenematrix[is.na(significantgenematrix)] = 0
+  #clusteredshit = reorder_cormat(significantgenematrix)
+  #dd <- as.dist((1-cor(t(significantgenematrix), method = "spearman"))/2)
+  dd = dist(significantgenematrix, method = "manhattan")
+  hc <- hclust(dd,method = "average")
+  clusteredshit <-significantgenematrix[hc$order,]
+  clusteredshit = clusteredshit %>% rownames_to_column(var = "id")
+  meltedshit = gather(clusteredshit, dataset, logFC, -id, factor_key = T)
+  meltedshit$id = factor(meltedshit$id, levels = as.character(meltedshit$id[1:length(rownames(significantgenematrix))]))
+  ggheatmap <- ggplot(meltedshit, aes(dataset, id, fill = logFC))+
+    geom_tile()+
+    scale_fill_gradient2(low = "blue4", high = "red4", mid = "white", 
+                         midpoint = 0, space = "Lab", 
+                         name="LogFC")
+  ggheatmap
+  pdf(paste0("./plots/signatureplots/", name, "/heatmapbygene", ".pdf"))
+  print(ggheatmap)
+  dev.off()
+  
+  print(paste0("I'm done with the ", name, " signature."))
+}
 
 
 
