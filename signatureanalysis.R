@@ -8,6 +8,8 @@ library(reshape2)
 library(VennDiagram)
 library(annotate)
 library(org.Hs.eg.db)
+library(ggdendro)
+library(grid)
 
 ##### subgroup analysis
 
@@ -244,6 +246,113 @@ print(dendro.plot, vp = viewport(x = 0.90, y = 0.5, width = 0.2, height = 1.087)
 #                       midpoint = 0, space = "Lab", 
 #                       name="LogFC")
 #ggheatmap
+
+
+
+##### signature clusterization
+
+alex_signatures = dget("Signatures_mouse_genes.R")
+
+superlist = agingsignatures_v3
+
+for (type in names(alex_signatures)){
+  for (name in names(alex_signatures[[type]])){
+       superlist[[paste0(type, "_", name)]] = alex_signatures[[type]][[name]]
+  }
+}
+
+totalgenes = c()
+for (name in names(superlist)){
+  totalgenes = union(totalgenes, rownames(superlist[[name]]))
+}
+
+supermatrix = matrix(ncol = length(superlist), nrow = length(totalgenes))
+rownames(supermatrix) = totalgenes
+colnames(supermatrix) = names(superlist)
+for (name in names(superlist)){
+  supermatrix[rownames(superlist[[name]]), name] = superlist[[name]]$logFC
+}
+
+supercormatrix = cor(supermatrix, method = "spearman", use = "complete.obs")
+
+cormethod = "spearman"
+thres = "750"
+superpupercormatrix = data.frame()
+for (i in 1:length(superlist)){
+  if ("FDR" %in% colnames(superlist[[i]])){
+    superlist[[i]]$adj_pval = superlist[[i]]$FDR
+  }
+  for (j in i:length(superlist)){
+    if ("FDR" %in% colnames(superlist[[j]])){
+      superlist[[j]]$adj_pval = superlist[[j]]$FDR
+    }
+    topA = superlist[[i]] %>% rownames_to_column(var = "row.names")
+    topA = topA %>% top_n(-1 * as.integer(as.character(thres)), adj_pval)
+    topA = topA %>% column_to_rownames(var = "row.names")
+    topB = superlist[[j]] %>% rownames_to_column(var = "row.names")
+    topB = topB %>% top_n(-1 * as.integer(as.character(thres)), adj_pval)
+    topB = topB %>% column_to_rownames(var = "row.names")
+    totalrownames = union(rownames(topA), rownames(topB))
+    superpupercormatrix[names(superlist)[i], names(superlist)[j]] = cor(superlist[[i]][totalrownames,]$logFC, superlist[[j]][totalrownames,]$logFC, method = cormethod, use = "complete.obs")
+    superpupercormatrix[names(superlist)[j], names(superlist)[i]] = cor(superlist[[i]][totalrownames,]$logFC, superlist[[j]][totalrownames,]$logFC, method = cormethod, use = "complete.obs")
+    #    mergedmatrix = agingsignatures_v3[[i]]["logFC"]
+    #    mergedmatrix = mergedmatrix %>% dplyr::rename(logFCi = logFC)
+    #    mergedmatrix = merge(mergedmatrix, agingsignatures_v3[[j]]["logFC"], by=0, all=TRUE)
+    #    mergedmatrix = mergedmatrix %>% column_to_rownames("Row.names")
+    #    cormatrixdenoised[names(agingsignatures_v3)[i], names(agingsignatures_v3)[j]] = round(cor(mergedmatrix[union(rownames(topA), rownames(topB)),], method = "spearman", use = "complete.obs"),2)[2,1]
+  }
+}
+
+# MDS
+library(ggrepel)
+color = c(rep("aging", 7), rep("species", 3), rep("interventions", 8))
+mdsfordatasets <- cmdscale((1 - cor(supermatrix, use = "complete.obs", method = "spearman"))/2)
+mdsfordatasets = cbind(mdsfordatasets, color)
+mdsfordatasets = as.data.frame(mdsfordatasets)
+mdsfordatasets$V1 = as.numeric(as.character(mdsfordatasets$V1))
+mdsfordatasets$V2 = as.numeric(as.character(mdsfordatasets$V2))
+ggplot(mdsfordatasets, aes(x = V1, y = V2, color = color)) + geom_point() + geom_label_repel(aes(label=rownames(mdsfordatasets)),hjust="inward", vjust="inward")
+
+mdsfordatasets <- cmdscale((1 - superpupercormatrix)/2)
+mdsfordatasets = cbind(mdsfordatasets, color)
+mdsfordatasets = as.data.frame(mdsfordatasets)
+mdsfordatasets$V1 = as.numeric(as.character(mdsfordatasets$V1))
+mdsfordatasets$V2 = as.numeric(as.character(mdsfordatasets$V2))
+ggplot(mdsfordatasets, aes(x = V1, y = V2, color = color)) + geom_point() + geom_label_repel(aes(label=rownames(mdsfordatasets)),hjust="inward", vjust="inward")
+
+# dendrogram
+
+supermatrix = as.matrix(supermatrix)
+genedendro = as.dendrogram(hclust(d = as.dist((1 - superpupercormatrix)/2), method = "complete"))
+dendro.plot <- ggdendrogram(data = genedendro, rotate = TRUE)
+print(dendro.plot)
+
+dendroorder <- order.dendrogram(genedendro)
+
+tempshit = as.data.frame(superpupercormatrix) %>% rownames_to_column(var = "id")
+meltedshit = gather(tempshit, dataset, logFC, -id, factor_key = T)
+meltedshit$id = factor(meltedshit$id, levels = tempshit$id[dendroorder], ordered = T)
+heatmap.plot <- ggplot(meltedshit, aes(dataset, id, fill = logFC))+
+  geom_tile()+
+  scale_fill_gradient2(low = "blue4", high = "red4", mid = "white", 
+                       midpoint = 0, space = "Lab", 
+                       name="Spearman Correlation")
+print(heatmap.plot)
+
+grid.newpage()
+print(heatmap.plot, vp = viewport(x = 0.4, y = 0.5, width = 0.93, height = 0.8))
+print(dendro.plot, vp = viewport(x = 0.90, y = 0.5, width = 0.2, height = 0.8))
+
+
+
+
+
+
+
+
+
+
+
 
 # gsea heatmap:
 totalposrownames = c()
