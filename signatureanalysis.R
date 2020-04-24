@@ -211,7 +211,7 @@ pvalsforclus = as.data.frame(pvalsforclus)
 # filter genes by significance:
 # geometric mean of p-values:
 pvalsforclus$geommin = (pvalsforclus$Human * pvalsforclus$Rat * pvalsforclus$Mouse * pvalsforclus$Brain * pvalsforclus$Muscle * pvalsforclus$Liver * pvalsforclus$All) ^ (1/7)
-logFCforclusfiltered = logFCforclus[rownames(pvalsforclus %>% rownames_to_column("Row.names") %>% filter(geommin < 0.2) %>% column_to_rownames("Row.names")),]
+logFCforclusfiltered = logFCforclus[rownames(pvalsforclus %>% rownames_to_column("Row.names") %>% filter(geommin < 0.1) %>% column_to_rownames("Row.names")),]
 
 logFCforclusfiltered = as.matrix(logFCforclusfiltered)
 genedendro = as.dendrogram(hclust(d = dist(x = logFCforclusfiltered, method = "euclidean"), method = "complete"))
@@ -318,7 +318,7 @@ mdsfordatasets = cbind(mdsfordatasets, color)
 mdsfordatasets = as.data.frame(mdsfordatasets)
 mdsfordatasets$V1 = as.numeric(as.character(mdsfordatasets$V1))
 mdsfordatasets$V2 = as.numeric(as.character(mdsfordatasets$V2))
-ggplot(mdsfordatasets, aes(x = V1, y = V2, color = color)) + geom_point() + geom_label_repel(aes(label=rownames(mdsfordatasets)),hjust="inward", vjust="inward")
+ggplot(mdsfordatasets, aes(x = V1, y = V2, color = color)) + geom_point() + geom_text_repel(aes(label=rownames(mdsfordatasets)),hjust="inward", vjust="inward")
 
 # dendrogram
 
@@ -336,7 +336,8 @@ heatmap.plot <- ggplot(meltedshit, aes(dataset, id, fill = logFC))+
   geom_tile()+
   scale_fill_gradient2(low = "blue4", high = "red4", mid = "white", 
                        midpoint = 0, space = "Lab", 
-                       name="Spearman Correlation")
+                       name="Spearman Correlation")+
+  theme(axis.text.x = element_text(angle = 90))
 print(heatmap.plot)
 
 grid.newpage()
@@ -360,9 +361,9 @@ totalnegrownames = c()
 for (name in names(agingsignatures_v3)){
   pos = read.table(paste0("./GSEA_result/", name, "/", name, "_positive.xls"), sep = "\t", header = T)
   neg = read.table(paste0("./GSEA_result/", name, "/", name, "_negative.xls"), sep = "\t", header = T)
-  pos = pos %>% filter(FDR.q.val < 0.05)
+  pos = pos %>% filter(FDR.q.val < 0.1)
   totalposrownames = c(totalposrownames, as.character(pos$NAME))
-  neg = neg %>% filter(FDR.q.val < 0.05)
+  neg = neg %>% filter(FDR.q.val < 0.1)
   totalnegrownames = c(totalnegrownames, as.character(neg$NAME))
 }
 postable = matrix(nrow = length(totalposrownames), ncol = 7)
@@ -374,13 +375,50 @@ colnames(negtable) = names(agingsignatures_v3)
 for (name in names(agingsignatures_v3)){
   pos = read.table(paste0("./GSEA_result/", name, "/", name, "_positive.xls"), sep = "\t", header = T)
   neg = read.table(paste0("./GSEA_result/", name, "/", name, "_negative.xls"), sep = "\t", header = T)
-  pos = pos %>% filter(FDR.q.val < 0.05)
-  neg = neg %>% filter(FDR.q.val < 0.05)
+  pos = pos %>% filter(FDR.q.val < 0.1)
+  neg = neg %>% filter(FDR.q.val < 0.1)
   postable[as.character(pos$NAME), name] = pos$NES
   negtable[as.character(neg$NAME), name] = neg$NES
 }
 totaltable = rbind(na.omit(postable), na.omit(negtable))
 totaltable = as.data.frame(totaltable)
+
+onenapostable = as.data.frame(postable)
+onenanegtable = as.data.frame(negtable)
+onenapostable$nas = rowSums(is.na(onenapostable))
+onenanegtable$nas = rowSums(is.na(onenanegtable))
+onenapostable = onenapostable %>% rownames_to_column("Row.names") %>% filter(nas == 1) %>% column_to_rownames("Row.names")
+onenanegtable = onenanegtable %>% rownames_to_column("Row.names") %>% filter(nas == 1) %>% column_to_rownames("Row.names")
+onenapostable$nas = NULL
+onenanegtable$nas = NULL
+
+postable1 = as.data.frame(na.omit(postable))
+negtable1 = as.data.frame(na.omit(negtable))
+
+negtable1$AA = 1:23
+negtable1[,2:8] = negtable1[,1:7]
+colnames(negtable1) = c("numba", "Human", "Rat", "Mouse", "Brain", "Muscle", "Liver", "All")
+negtable1$numba = 1:23
+negtable1 = negtable1[-c(2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 15, 16, 18, 21, 23),] #here I chose unique functions
+
+postable1$AA = 1:36
+postable1[,2:8] = postable1[,1:7]
+colnames(postable1) = c("numba", "Human", "Rat", "Mouse", "Brain", "Muscle", "Liver", "All")
+postable1$numba = 1:36
+postable1 = postable1[-c(1, 3, 4, 6, 7, 8, 9, 10, 11, 12, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 33, 34, 35, 36),]
+
+onenapostable$AA = 1:80
+onenapostable[,2:8] = onenapostable[,1:7]
+colnames(onenapostable) = c("numba", "Human", "Rat", "Mouse", "Brain", "Muscle", "Liver", "All")
+onenapostable$numba = 1:80
+onenapostable = onenapostable[-c(3, 5, 7, 8, 9, 11, 12, 13, 14, 15, 17, 19, 20, 22, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 36, 37, 41, 42, 43, 44, 45, 46, 48, 49, 50, 51, 53, 54, 55, 56, 57, 58, 59, 60, 61, 63, 64, 65, 66, 67, 68, 69, 70, 72, 73, 74, 75, 76, 77, 78, 79, 80),]
+
+onenanegtable$AA = 1:8
+onenanegtable[,2:8] = onenanegtable[,1:7]
+colnames(onenanegtable) = c("numba", "Human", "Rat", "Mouse", "Brain", "Muscle", "Liver", "All")
+onenanegtable$numba = 1:8
+onenanegtable = onenanegtable[-c(3, 4, 6, 8),]
+
 #melted_cormat <- melt(upper_tri, na.rm = TRUE)
 totaltable = totaltable %>% rownames_to_column("Row.names")
 melted_cormat <- gather(totaltable, key = "key", value = "value", -Row.names)
@@ -430,6 +468,116 @@ ggheatmap <- ggplot(melted_cormat, aes(key, Row.names, fill = value))+
                                    size = 12, hjust = 1))+
   coord_fixed()
 print(ggheatmap)
+
+# gsea heatmap for geometric mean of q values:
+totalposrownames = c()
+totalnegrownames = c()
+for (name in names(agingsignatures_v3)){
+  pos = read.table(paste0("./GSEA_result/", name, "/", name, "_positive.xls"), sep = "\t", header = T)
+  neg = read.table(paste0("./GSEA_result/", name, "/", name, "_negative.xls"), sep = "\t", header = T)
+  totalposrownames = union(totalposrownames, as.character(pos$NAME))
+  totalnegrownames = union(totalnegrownames, as.character(neg$NAME))
+}
+
+postable = matrix(nrow = length(totalposrownames), ncol = 7)
+rownames(postable) = totalposrownames
+colnames(postable) = names(agingsignatures_v3)
+negtable = matrix(nrow = length(totalnegrownames), ncol = 7)
+rownames(negtable) = totalnegrownames
+colnames(negtable) = names(agingsignatures_v3)
+
+postableq = matrix(nrow = length(totalposrownames), ncol = 7)
+rownames(postableq) = totalposrownames
+colnames(postableq) = names(agingsignatures_v3)
+negtableq = matrix(nrow = length(totalnegrownames), ncol = 7)
+rownames(negtableq) = totalnegrownames
+colnames(negtableq) = names(agingsignatures_v3)
+
+for (name in names(agingsignatures_v3)){
+  pos = read.table(paste0("./GSEA_result/", name, "/", name, "_positive.xls"), sep = "\t", header = T)
+  neg = read.table(paste0("./GSEA_result/", name, "/", name, "_negative.xls"), sep = "\t", header = T)
+  postable[as.character(pos$NAME), name] = pos$NES
+  postableq[as.character(pos$NAME), name] = pos$FDR.q.val
+  negtable[as.character(neg$NAME), name] = neg$NES
+  negtableq[as.character(neg$NAME), name] = neg$FDR.q.val
+}
+
+totaltable = rbind(postable, negtable)
+totaltable = as.data.frame(totaltable)
+totaltableq = rbind(postableq, negtableq)
+totaltableq = as.data.frame(totaltableq)
+
+totaltableq$geommin = (totaltableq$Human * totaltableq$Rat * totaltableq$Mouse * totaltableq$Brain * totaltableq$Muscle * totaltableq$Liver * totaltableq$All) ^ (1/7)
+totaltablefiltered = totaltable[rownames(totaltableq %>% rownames_to_column("Row.names") %>% filter(geommin < 0.1) %>% column_to_rownames("Row.names")),]
+
+totaltablefiltered = totaltablefiltered[-grep(".*LEUKOCYTE.*", row.names(totaltablefiltered)),]
+totaltablefiltered = totaltablefiltered[-grep(".*DEFENSE.*", row.names(totaltablefiltered)),]
+totaltablefiltered = totaltablefiltered[-grep(".*BACTERIUM.*", row.names(totaltablefiltered)),]
+totaltablefiltered = totaltablefiltered[-grep(".*VIRAL.*", row.names(totaltablefiltered)),]
+totaltablefiltered = totaltablefiltered[-grep(".*LYMPHOCYTE.*", row.names(totaltablefiltered)),]
+totaltablefiltered = totaltablefiltered[-grep(".*B_CELL.*", row.names(totaltablefiltered)),]
+totaltablefiltered = totaltablefiltered[-grep(".*INTERLEUKIN.*", row.names(totaltablefiltered)),]
+totaltablefiltered = totaltablefiltered[-grep(".*CYTOKIN.*", row.names(totaltablefiltered)),]
+totaltablefiltered = totaltablefiltered[-grep(".*CHEMOKIN.*", row.names(totaltablefiltered)),]
+totaltablefiltered = totaltablefiltered[-grep(".*BACTERIAL.*", row.names(totaltablefiltered)),]
+totaltablefiltered = totaltablefiltered[-grep(".*VIRUS.*", row.names(totaltablefiltered)),]
+totaltablefiltered = totaltablefiltered[-grep(".*T_CELL.*", row.names(totaltablefiltered)),]
+totaltablefiltered = totaltablefiltered[-grep(".*INTERFERON.*", row.names(totaltablefiltered)),]
+totaltablefiltered = totaltablefiltered[-grep(".*ADHESION.*", row.names(totaltablefiltered)),]
+totaltablefiltered = totaltablefiltered[-grep(".*NEUTROPHIL.*", row.names(totaltablefiltered)),]
+totaltablefiltered = totaltablefiltered[-grep(".*MACROPHAGE.*", row.names(totaltablefiltered)),]
+totaltablefiltered = totaltablefiltered[-grep(".*TUMOR_NECROSIS.*", row.names(totaltablefiltered)),]
+totaltablefiltered = totaltablefiltered[-grep(".*MICROBIAL.*", row.names(totaltablefiltered)),]
+totaltablefiltered = totaltablefiltered[-grep(".*INFLUENZA.*", row.names(totaltablefiltered)),]
+totaltablefiltered = totaltablefiltered[-grep(".*FOAM.*", row.names(totaltablefiltered)),]
+totaltablefiltered = totaltablefiltered[-grep(".*KILLING.*", row.names(totaltablefiltered)),]
+totaltablefiltered = totaltablefiltered[-grep(".*JAK_STAT.*", row.names(totaltablefiltered)),]
+
+totaltablefiltered$AA = 1:333
+totaltablefiltered[,2:8] = totaltablefiltered[,1:7]
+colnames(totaltablefiltered) = c("numba", "Human", "Rat", "Mouse", "Brain", "Muscle", "Liver", "All")
+totaltablefiltered$numba = 1:333
+
+View(totaltablefiltered[grep(".*RIBOSOME.*", row.names(totaltablefiltered)),])
+
+totaltableexerpt = totaltablefiltered[c(3, 6, 8, 165, 282, 319),]
+
+totaltablefiltered = totaltablefiltered[-grep(".*INFLAM.*", row.names(totaltablefiltered)),]
+totaltablefiltered = totaltablefiltered[-grep(".*IMMUN.*", row.names(totaltablefiltered)),]
+totaltablefiltered = totaltablefiltered[-grep(".*TRANSLATION.*", row.names(totaltablefiltered)),]
+totaltablefiltered = totaltablefiltered[-grep(".*MITOCHOND.*", row.names(totaltablefiltered)),]
+totaltablefiltered = totaltablefiltered[-grep(".*TCA.*", row.names(totaltablefiltered)),]
+totaltablefiltered = totaltablefiltered[-grep(".*ELECTRON.*", row.names(totaltablefiltered)),]
+totaltablefiltered = totaltablefiltered[-grep(".*COMPLEMENT.*", row.names(totaltablefiltered)),]
+
+totaltablefiltered$numba = NULL
+totaltablefiltered$AA = 1:270
+totaltablefiltered[,2:8] = totaltablefiltered[,1:7]
+colnames(totaltablefiltered) = c("numba", "Human", "Rat", "Mouse", "Brain", "Muscle", "Liver", "All")
+totaltablefiltered$numba = 1:270
+
+totaltablefinal = totaltablefiltered[c(),]
+totaltablefinal = totaltablefiltered[c(2, 5, 9, 11, 23, 25, 26, 28, 38, 46, 49, 56, 83, 87, 132, 195, 221, 245, 246, 253, 257, 260, 264),]
+
+totaltablefinal = rbind(totaltablefinal, totaltableexerpt) %>% rownames_to_column("Row.names") %>% dplyr::arrange(numba) %>% column_to_rownames("Row.names")
+totaltablefinal$numba = NULL
+
+#melted_cormat <- melt(upper_tri, na.rm = TRUE)
+totaltablefinal = totaltablefinal %>% rownames_to_column("Row.names")
+melted_cormat <- gather(totaltablefinal, key = "key", value = "value", -Row.names)
+melted_cormat$Row.names = factor(melted_cormat$Row.names, levels = melted_cormat$Row.names[29:1])
+# Create a ggheatmap
+ggheatmap <- ggplot(melted_cormat, aes(key, Row.names, fill = value))+
+  geom_tile(color = "white")+
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+                       midpoint = 0, space = "Lab", name = "NES") +
+  theme_minimal()+ # minimal theme
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+                                   size = 12, hjust = 1))+
+  coord_fixed()
+print(ggheatmap)
+
+
 
 
 ##### deming regression for signatures
