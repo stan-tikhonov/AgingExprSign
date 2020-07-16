@@ -32,8 +32,8 @@ corheatmapper = function(cormatrix, cormethod, corlimit = 1){
                          midpoint = 0, limit = c(-corlimit,corlimit), space = "Lab", 
                          name=paste0(capitalize(cormethod), "\nCorrelation")) +
     theme_minimal()+ # minimal theme
-    theme(axis.text.x = element_text(angle = 45, vjust = 1, 
-                                     size = 12, hjust = 1))+
-    coord_fixed()
+    theme(axis.text.x = element_text(angle = 45, vjust = 1, size = 14, 
+                                     hjust = 1), axis.text.y = element_text(size = 14))+
+    coord_equal()
   return(ggheatmap)
 }

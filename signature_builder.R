@@ -283,7 +283,7 @@ for (name in names(chosencols)){
       cormatrix[colnames(logFCmatrixchosen)[j], colnames(logFCmatrixchosen)[i]] = cormatrix[colnames(logFCmatrixchosen)[i], colnames(logFCmatrixchosen)[j]]
     }
   }
-  ggheatmap = corheatmapper(cormartix, cormethod = "spearman")
+  ggheatmap = corheatmapper(cormatrix, cormethod = "spearman")
   print(ggheatmap)
   pdf(paste0("./plots/signatureplots/", name, "/initialheatmap", ".pdf"))
   print(ggheatmap)

@@ -214,7 +214,7 @@ pvalsforclus$geommin = (pvalsforclus$Human * pvalsforclus$Rat * pvalsforclus$Mou
 logFCforclusfiltered = logFCforclus[rownames(pvalsforclus %>% rownames_to_column("Row.names") %>% filter(geommin < 0.1) %>% column_to_rownames("Row.names")),]
 
 logFCforclusfiltered = as.matrix(logFCforclusfiltered)
-genedendro = as.dendrogram(hclust(d = dist(x = logFCforclusfiltered, method = "euclidean"), method = "complete"))
+genedendro = as.dendrogram(hclust(d = dist(x = logFCforclusfiltered, method = "manhattan"), method = "ward"))
 dendro.plot <- ggdendrogram(data = genedendro, rotate = TRUE)
 print(dendro.plot)
 
@@ -255,11 +255,13 @@ alex_signatures = dget("Signatures_mouse_genes.R")
 
 superlist = agingsignatures_v3
 
-for (type in names(alex_signatures)){
-  for (name in names(alex_signatures[[type]])){
-       superlist[[paste0(type, "_", name)]] = alex_signatures[[type]][[name]]
-  }
+names(superlist) = paste0("Aging:", names(superlist))
+
+
+for (name in names(alex_signatures$Interventions)){
+  superlist[[paste0("Intervensions", ":", name)]] = alex_signatures$Interventions[[name]]
 }
+
 
 totalgenes = c()
 for (name in names(superlist)){
@@ -329,27 +331,164 @@ print(dendro.plot)
 
 dendroorder <- order.dendrogram(genedendro)
 
+superpupercormatrix = superpupercormatrix[dendroorder, dendroorder]
+
 tempshit = as.data.frame(superpupercormatrix) %>% rownames_to_column(var = "id")
 meltedshit = gather(tempshit, dataset, logFC, -id, factor_key = T)
-meltedshit$id = factor(meltedshit$id, levels = tempshit$id[dendroorder], ordered = T)
+meltedshit$id = factor(meltedshit$id, levels = tempshit$id, ordered = T)
 heatmap.plot <- ggplot(meltedshit, aes(dataset, id, fill = logFC))+
   geom_tile()+
   scale_fill_gradient2(low = "blue4", high = "red4", mid = "white", 
                        midpoint = 0, space = "Lab", 
                        name="Spearman Correlation")+
-  theme(axis.text.x = element_text(angle = 90))
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+                                   size = 12, hjust = 1),
+        axis.text.y = element_text(size = 11))
 print(heatmap.plot)
 
 grid.newpage()
 print(heatmap.plot, vp = viewport(x = 0.4, y = 0.5, width = 0.93, height = 0.8))
 print(dendro.plot, vp = viewport(x = 0.90, y = 0.5, width = 0.2, height = 0.8))
 
+# same thing for tissues
+superlist = list()
+superlist[["Liver"]] = agingsignatures_v3[["Liver"]]
+superlist[["Brain"]] = agingsignatures_v3[["Brain"]]
+superlist[["Muscle"]] = agingsignatures_v3[["Muscle"]]
 
+totalgenes = c()
+for (name in names(superlist)){
+  totalgenes = union(totalgenes, rownames(superlist[[name]]))
+}
 
+supermatrix = matrix(ncol = length(superlist), nrow = length(totalgenes))
+rownames(supermatrix) = totalgenes
+colnames(supermatrix) = names(superlist)
+for (name in names(superlist)){
+  supermatrix[rownames(superlist[[name]]), name] = superlist[[name]]$logFC
+}
 
+supercormatrix = cor(supermatrix, method = "spearman", use = "complete.obs")
 
+cormethod = "spearman"
+thres = "750"
+superpupercormatrix = data.frame()
+for (i in 1:length(superlist)){
+  if ("FDR" %in% colnames(superlist[[i]])){
+    superlist[[i]]$adj_pval = superlist[[i]]$FDR
+  }
+  for (j in i:length(superlist)){
+    if ("FDR" %in% colnames(superlist[[j]])){
+      superlist[[j]]$adj_pval = superlist[[j]]$FDR
+    }
+    topA = superlist[[i]] %>% rownames_to_column(var = "row.names")
+    topA = topA %>% top_n(-1 * as.integer(as.character(thres)), adj_pval)
+    topA = topA %>% column_to_rownames(var = "row.names")
+    topB = superlist[[j]] %>% rownames_to_column(var = "row.names")
+    topB = topB %>% top_n(-1 * as.integer(as.character(thres)), adj_pval)
+    topB = topB %>% column_to_rownames(var = "row.names")
+    totalrownames = union(rownames(topA), rownames(topB))
+    superpupercormatrix[names(superlist)[i], names(superlist)[j]] = cor(superlist[[i]][totalrownames,]$logFC, superlist[[j]][totalrownames,]$logFC, method = cormethod, use = "complete.obs")
+    superpupercormatrix[names(superlist)[j], names(superlist)[i]] = cor(superlist[[i]][totalrownames,]$logFC, superlist[[j]][totalrownames,]$logFC, method = cormethod, use = "complete.obs")
+    #    mergedmatrix = agingsignatures_v3[[i]]["logFC"]
+    #    mergedmatrix = mergedmatrix %>% dplyr::rename(logFCi = logFC)
+    #    mergedmatrix = merge(mergedmatrix, agingsignatures_v3[[j]]["logFC"], by=0, all=TRUE)
+    #    mergedmatrix = mergedmatrix %>% column_to_rownames("Row.names")
+    #    cormatrixdenoised[names(agingsignatures_v3)[i], names(agingsignatures_v3)[j]] = round(cor(mergedmatrix[union(rownames(topA), rownames(topB)),], method = "spearman", use = "complete.obs"),2)[2,1]
+  }
+}
 
+supermatrix = as.matrix(supermatrix)
+genedendro = as.dendrogram(hclust(d = as.dist((1 - superpupercormatrix)/2), method = "complete"))
+dendro.plot <- ggdendrogram(data = genedendro, rotate = TRUE)
+print(dendro.plot)
 
+dendroorder <- order.dendrogram(genedendro)
+
+superpupercormatrix = superpupercormatrix[dendroorder, dendroorder]
+
+tempshit = as.data.frame(superpupercormatrix) %>% rownames_to_column(var = "id")
+meltedshit = gather(tempshit, dataset, logFC, -id, factor_key = T)
+meltedshit$id = factor(meltedshit$id, levels = tempshit$id, ordered = T)
+heatmap.plot <- ggplot(meltedshit, aes(dataset, id, fill = logFC))+
+  geom_tile()+
+  scale_fill_gradient2(low = "blue4", high = "red4", mid = "white", 
+                       midpoint = 0, space = "Lab", 
+                       name="Spearman Correlation")+
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+                                   size = 12, hjust = 1),
+        axis.text.y = element_text(size = 11))
+print(heatmap.plot)
+
+# same thing for species
+superlist = list()
+superlist[["Mouse"]] = agingsignatures_v3[["Mouse"]]
+superlist[["Rat"]] = agingsignatures_v3[["Rat"]]
+superlist[["Human"]] = agingsignatures_v3[["Human"]]
+
+totalgenes = c()
+for (name in names(superlist)){
+  totalgenes = union(totalgenes, rownames(superlist[[name]]))
+}
+
+supermatrix = matrix(ncol = length(superlist), nrow = length(totalgenes))
+rownames(supermatrix) = totalgenes
+colnames(supermatrix) = names(superlist)
+for (name in names(superlist)){
+  supermatrix[rownames(superlist[[name]]), name] = superlist[[name]]$logFC
+}
+
+supercormatrix = cor(supermatrix, method = "spearman", use = "complete.obs")
+
+cormethod = "spearman"
+thres = "750"
+superpupercormatrix = data.frame()
+for (i in 1:length(superlist)){
+  if ("FDR" %in% colnames(superlist[[i]])){
+    superlist[[i]]$adj_pval = superlist[[i]]$FDR
+  }
+  for (j in i:length(superlist)){
+    if ("FDR" %in% colnames(superlist[[j]])){
+      superlist[[j]]$adj_pval = superlist[[j]]$FDR
+    }
+    topA = superlist[[i]] %>% rownames_to_column(var = "row.names")
+    topA = topA %>% top_n(-1 * as.integer(as.character(thres)), adj_pval)
+    topA = topA %>% column_to_rownames(var = "row.names")
+    topB = superlist[[j]] %>% rownames_to_column(var = "row.names")
+    topB = topB %>% top_n(-1 * as.integer(as.character(thres)), adj_pval)
+    topB = topB %>% column_to_rownames(var = "row.names")
+    totalrownames = union(rownames(topA), rownames(topB))
+    superpupercormatrix[names(superlist)[i], names(superlist)[j]] = cor(superlist[[i]][totalrownames,]$logFC, superlist[[j]][totalrownames,]$logFC, method = cormethod, use = "complete.obs")
+    superpupercormatrix[names(superlist)[j], names(superlist)[i]] = cor(superlist[[i]][totalrownames,]$logFC, superlist[[j]][totalrownames,]$logFC, method = cormethod, use = "complete.obs")
+    #    mergedmatrix = agingsignatures_v3[[i]]["logFC"]
+    #    mergedmatrix = mergedmatrix %>% dplyr::rename(logFCi = logFC)
+    #    mergedmatrix = merge(mergedmatrix, agingsignatures_v3[[j]]["logFC"], by=0, all=TRUE)
+    #    mergedmatrix = mergedmatrix %>% column_to_rownames("Row.names")
+    #    cormatrixdenoised[names(agingsignatures_v3)[i], names(agingsignatures_v3)[j]] = round(cor(mergedmatrix[union(rownames(topA), rownames(topB)),], method = "spearman", use = "complete.obs"),2)[2,1]
+  }
+}
+
+supermatrix = as.matrix(supermatrix)
+genedendro = as.dendrogram(hclust(d = as.dist((1 - superpupercormatrix)/2), method = "complete"))
+dendro.plot <- ggdendrogram(data = genedendro, rotate = TRUE)
+print(dendro.plot)
+
+dendroorder <- order.dendrogram(genedendro)
+
+superpupercormatrix = superpupercormatrix[dendroorder, dendroorder]
+
+tempshit = as.data.frame(superpupercormatrix) %>% rownames_to_column(var = "id")
+meltedshit = gather(tempshit, dataset, logFC, -id, factor_key = T)
+meltedshit$id = factor(meltedshit$id, levels = tempshit$id, ordered = T)
+heatmap.plot <- ggplot(meltedshit, aes(dataset, id, fill = logFC))+
+  geom_tile()+
+  scale_fill_gradient2(low = "blue4", high = "red4", mid = "white", 
+                       midpoint = 0, space = "Lab", 
+                       name="Spearman Correlation")+
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+                                   size = 12, hjust = 1),
+        axis.text.y = element_text(size = 11))
+print(heatmap.plot)
 
 
 
@@ -470,6 +609,7 @@ ggheatmap <- ggplot(melted_cormat, aes(key, Row.names, fill = value))+
 print(ggheatmap)
 
 # gsea heatmap for geometric mean of q values:
+library(psych)
 totalposrownames = c()
 totalnegrownames = c()
 for (name in names(agingsignatures_v3)){
@@ -507,8 +647,25 @@ totaltable = as.data.frame(totaltable)
 totaltableq = rbind(postableq, negtableq)
 totaltableq = as.data.frame(totaltableq)
 
-totaltableq$geommin = (totaltableq$Human * totaltableq$Rat * totaltableq$Mouse * totaltableq$Brain * totaltableq$Muscle * totaltableq$Liver * totaltableq$All) ^ (1/7)
-totaltablefiltered = totaltable[rownames(totaltableq %>% rownames_to_column("Row.names") %>% filter(geommin < 0.1) %>% column_to_rownames("Row.names")),]
+gseanes = read_csv("GSEA_signatures_NES.csv")
+gseafdr = read_csv("GSEA_signatures_FDR.csv")
+
+#cor(totaltable[gseanes$X1, c(7, 4, 1, 6, 3, 5, 2)], gseanes[2:8], use = "complete.obs")
+
+totaltable = cbind(totaltable[gseanes$X1,], gseanes[,9:16])
+colnames(totaltable)[1:7] = paste0("Aging:", colnames(totaltable)[1:7])
+
+totaltableq = cbind(totaltableq[gseafdr$X1,], gseafdr[,9:16])
+colnames(totaltableq)[1:7] = paste0("Aging:", colnames(totaltableq)[1:7])
+
+totaltableq[is.na(totaltableq)] = 1
+totaltable[is.na(totaltable)] = 0
+
+totaltableq$signif = rowSums(totaltableq < 0.05)
+totaltableq = totaltableq[which(totaltableq$signif > 0),]
+totaltableq$signif = NULL
+totaltableq$geommean = apply(totaltableq, 1, geometric.mean)
+totaltablefiltered = totaltable[rownames(totaltableq %>% rownames_to_column("Row.names") %>% filter(geommean < 0.1) %>% column_to_rownames("Row.names")),]
 
 totaltablefiltered = totaltablefiltered[-grep(".*LEUKOCYTE.*", row.names(totaltablefiltered)),]
 totaltablefiltered = totaltablefiltered[-grep(".*DEFENSE.*", row.names(totaltablefiltered)),]
@@ -533,34 +690,57 @@ totaltablefiltered = totaltablefiltered[-grep(".*FOAM.*", row.names(totaltablefi
 totaltablefiltered = totaltablefiltered[-grep(".*KILLING.*", row.names(totaltablefiltered)),]
 totaltablefiltered = totaltablefiltered[-grep(".*JAK_STAT.*", row.names(totaltablefiltered)),]
 
-totaltablefiltered$AA = 1:333
-totaltablefiltered[,2:8] = totaltablefiltered[,1:7]
-colnames(totaltablefiltered) = c("numba", "Human", "Rat", "Mouse", "Brain", "Muscle", "Liver", "All")
-totaltablefiltered$numba = 1:333
+totaltablefiltered = totaltablefiltered %>% add_column(numba = 1:336, .before = 1)
 
-View(totaltablefiltered[grep(".*RIBOSOME.*", row.names(totaltablefiltered)),])
+View(totaltablefiltered[grep(".*FATTY.*", row.names(totaltablefiltered)),])
 
-totaltableexerpt = totaltablefiltered[c(3, 6, 8, 165, 282, 319),]
+totaltablefinal = totaltablefiltered[c(2, 8, 15, 19, 22, 27, 30, 35, 42, 82, 96, 100, 107, 126, 134, 142, 145, 150, 152, 154, 169, 176, 178, 192, 240, 247, 248, 256, 259, 262, 264, 270, 276, 283, 294, 296, 302, 304),]
 
-totaltablefiltered = totaltablefiltered[-grep(".*INFLAM.*", row.names(totaltablefiltered)),]
-totaltablefiltered = totaltablefiltered[-grep(".*IMMUN.*", row.names(totaltablefiltered)),]
-totaltablefiltered = totaltablefiltered[-grep(".*TRANSLATION.*", row.names(totaltablefiltered)),]
-totaltablefiltered = totaltablefiltered[-grep(".*MITOCHOND.*", row.names(totaltablefiltered)),]
-totaltablefiltered = totaltablefiltered[-grep(".*TCA.*", row.names(totaltablefiltered)),]
-totaltablefiltered = totaltablefiltered[-grep(".*ELECTRON.*", row.names(totaltablefiltered)),]
-totaltablefiltered = totaltablefiltered[-grep(".*COMPLEMENT.*", row.names(totaltablefiltered)),]
-
-totaltablefiltered$numba = NULL
-totaltablefiltered$AA = 1:270
-totaltablefiltered[,2:8] = totaltablefiltered[,1:7]
-colnames(totaltablefiltered) = c("numba", "Human", "Rat", "Mouse", "Brain", "Muscle", "Liver", "All")
-totaltablefiltered$numba = 1:270
-
-totaltablefinal = totaltablefiltered[c(),]
-totaltablefinal = totaltablefiltered[c(2, 5, 9, 11, 23, 25, 26, 28, 38, 46, 49, 56, 83, 87, 132, 195, 221, 245, 246, 253, 257, 260, 264),]
-
-totaltablefinal = rbind(totaltablefinal, totaltableexerpt) %>% rownames_to_column("Row.names") %>% dplyr::arrange(numba) %>% column_to_rownames("Row.names")
+totaltablefinal$numba = 1:38
+totaltablefinal = totaltablefinal[-c(4, 10, 17, 18, 19, 20, 21, 24),]
 totaltablefinal$numba = NULL
+
+totaltablefinal = as.matrix(totaltablefinal)
+#genedendro = as.dendrogram(hclust(d = as.dist((1 - cor(t(totaltablefinal)))/2), method = "complete"))
+genedendro = as.dendrogram(hclust(d = dist(x = totaltablefinal, method = "manhattan"), method = "complete"))
+dendro.plot <- ggdendrogram(data = genedendro, rotate = TRUE)
+print(dendro.plot)
+
+dendroorder <- order.dendrogram(genedendro)
+
+tempshit = as.data.frame(totaltablefinal) %>% rownames_to_column(var = "id")
+meltedshit = gather(tempshit, signature, NES, -id, factor_key = T)
+meltedshit$id = factor(meltedshit$id, levels = tempshit$id[dendroorder], ordered = T)
+heatmap.plot <- ggplot(meltedshit, aes(signature, id, fill = NES))+
+  geom_tile()+
+  scale_fill_gradient2(low = "blue4", high = "red4", mid = "white", 
+                       midpoint = 0, space = "Lab", 
+                       name="NES")+
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+                                   size = 12, hjust = 1))
+print(heatmap.plot)
+
+#totaltableexerpt = totaltablefiltered[c(3, 6, 8, 165, 282, 319),]
+
+#totaltablefiltered = totaltablefiltered[-grep(".*INFLAM.*", row.names(totaltablefiltered)),]
+#totaltablefiltered = totaltablefiltered[-grep(".*IMMUN.*", row.names(totaltablefiltered)),]
+#totaltablefiltered = totaltablefiltered[-grep(".*TRANSLATION.*", row.names(totaltablefiltered)),]
+#totaltablefiltered = totaltablefiltered[-grep(".*MITOCHOND.*", row.names(totaltablefiltered)),]
+#totaltablefiltered = totaltablefiltered[-grep(".*TCA.*", row.names(totaltablefiltered)),]
+#totaltablefiltered = totaltablefiltered[-grep(".*ELECTRON.*", row.names(totaltablefiltered)),]
+#totaltablefiltered = totaltablefiltered[-grep(".*COMPLEMENT.*", row.names(totaltablefiltered)),]
+
+#totaltablefiltered$numba = NULL
+#totaltablefiltered$AA = 1:270
+#totaltablefiltered[,2:8] = totaltablefiltered[,1:7]
+#colnames(totaltablefiltered) = c("numba", "Human", "Rat", "Mouse", "Brain", "Muscle", "Liver", "All")
+#totaltablefiltered$numba = 1:270
+
+#totaltablefinal = totaltablefiltered[c(),]
+#totaltablefinal = totaltablefiltered[c(2, 5, 9, 11, 23, 25, 26, 28, 38, 46, 49, 56, 83, 87, 132, 195, 221, 245, 246, 253, 257, 260, 264),]
+
+#totaltablefinal = rbind(totaltablefinal, totaltableexerpt) %>% rownames_to_column("Row.names") %>% dplyr::arrange(numba) %>% column_to_rownames("Row.names")
+#totaltablefinal$numba = NULL
 
 #melted_cormat <- melt(upper_tri, na.rm = TRUE)
 totaltablefinal = totaltablefinal %>% rownames_to_column("Row.names")
