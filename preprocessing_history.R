@@ -7446,6 +7446,2496 @@ featuredata = fData(gse[[1]])
 
 
 
+##### GSE132040 (BEGIN)
+
+gse = getGEO("GSE132040") #here, type your gse id
+filteredphenodata = data.frame(pData(gse[[1]]))
+# set up target list element:
+target = list()
+
+
+filteredphenodata$Age = sub("^[^[:digit:]]*", "", filteredphenodata$characteristics_ch1.2)
+filteredphenodata$Age = sub("[^[:digit:]]*$", "", filteredphenodata$Age)
+
+filteredphenodata = filteredphenodata %>% filter(Age != "1")
+filteredphenodata = filteredphenodata %>% filter(tissue.ch1 != "NA")
+
+filteredexprdata = read.csv(file = "GSE132040_190214_A00111_0269_AHH3J3DSXX_190214_A00111_0270_BHHMFWDSXX.csv", header = T)
+filteredexprdata = filteredexprdata %>% column_to_rownames("gene")
+
+
+filteredphenodata$trimmedtitle = sub("^(.*)\\[(.*)\\].*", "\\2", filteredphenodata$title)
+colnames(filteredexprdata) = sub(".gencode.vM19", "", colnames(filteredexprdata))
+
+filteredexprdata = filteredexprdata[, filteredphenodata$trimmedtitle]
+colnames(filteredexprdata) = filteredphenodata$geo_accession
+
+filteredexprdata2 = filteredexprdata
+filteredphenodata1 = filteredphenodata
+
+
+# tissue loop:
+for (tissue in unique(filteredphenodata$tissue.ch1)){
+  # SEPARATED ALREADY
+  # (if you have a separate column)
+  filteredphenodata = subset(filteredphenodata1, tissue.ch1 == tissue)
+  
+  filteredexprdata = filteredexprdata2[, rownames(filteredphenodata)]
+  filteredexprdata = na.omit(filteredexprdata)
+  
+  #$$$$$ filter genes with low expression
+  # LOG2 (logarithmize if needed)
+  logdata = log2(filteredexprdata + 1)
+  # CHECK PEAK
+  # (first look if there is a peak at low values of expression)
+  visualstack = stack(logdata)
+  ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+  # save it:
+  target[["Raw_density"]] <- ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+  # SMASH IT
+  # (if there is one, filter it out)
+  filteredexprdata$rowsum = rowSums(filteredexprdata > 70) # take only genes having more than
+  #                                                                10 reads...
+  filteredexprdata1 = filteredexprdata[filteredexprdata$rowsum > 3,] # ...in at least
+  #                                                  one third of samples (here it is 3 samples)
+  filteredexprdata = subset(filteredexprdata1, select = -c(rowsum))
+  logdata = log2(filteredexprdata + 1)
+  visualstack = stack(logdata)
+  ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+  
+  
+  #$$$$$ Convert to Entrez (from Ensembl)(sum reads), and normalize with RLE
+  # CONVERT GENES (convert and take means)
+  source("FUN.Ensembl_mouse_dictionary_create_for_genesymbol.R")
+  dic = Ensembl_mouse_dictionary_create(filteredexprdata)
+  source("FUN.Ensembl_to_entrez.R")
+  normdata = Ensembl_to_entrez(filteredexprdata, dic)
+  source("FUN.RLE_normalization.R")
+  normdata = RLE_normalization(normdata)
+  normdata  = log2(normdata + 1)
+  visualstack = stack(normdata)
+  ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+  
+  #$$$$$ PCA
+  exprforpca = data.frame(t(scale(t(normdata))))
+  pcamodel = prcomp(t(exprforpca))
+  cluster_values = as.data.frame(pcamodel[['x']])
+  cluster_plot = ggplot(cluster_values, aes(x = PC1, y = PC2))
+  color_pca = filteredphenodata[, "Age"]
+  cluster_plot + geom_point(aes(color = color_pca))
+  # save it:
+  target[["PCA"]] <- cluster_plot + geom_point(aes(color = color_pca))
+  
+  for (sex in unique(filteredphenodata$Sex.ch1)){
+    #$$$$$ Filter sex, scale before limma
+    # separate by sex
+    # SEPARATED ALREADY
+    # (if you have a separate column)
+    sexyphenodata = subset(filteredphenodata, Sex.ch1 == sex)
+    
+    # filter expression data
+    sexyexprdata = normdata[, rownames(sexyphenodata)]
+    
+    # Scale
+    sexyexprdata = data.frame(scale(sexyexprdata))
+    visualstack = stack(sexyexprdata)
+    ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+    # save it:
+    target[["Processed_density"]] <- ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+    
+    #$$$$$ Limma
+    # CONTINUOUS (design matrix for continuous data)
+    # sexyphenodata$Age = sub("m$", "", sexyphenodata$Age) # delete nonnumeric characters
+    sexyphenodata$Age = as.numeric(as.character(sexyphenodata$Age))
+    design_matrix = model.matrix(~ sexyphenodata$Age)
+    rownames(design_matrix) = rownames(sexyphenodata)
+    colnames(design_matrix) <- c("Intercept", "Age")
+    print(design_matrix)
+    
+    # Launch limma
+    contrast_matrix <- makeContrasts("Age", levels=design_matrix)
+    diffexprfit <- lmFit(sexyexprdata, design_matrix)
+    diffexprfitcontrast <- contrasts.fit(diffexprfit, contrast_matrix)
+    diffexprfitcontrast <- eBayes(diffexprfitcontrast)
+    target[["LogFC_table"]] <- topTable(diffexprfitcontrast, coef = "Age", number = Inf, adjust = "BH", confint = TRUE)
+    # calculate standard error
+    target[["LogFC_table"]]$SE = (target[["LogFC_table"]]$CI.R - target[["LogFC_table"]]$CI.L) / 3.92
+    
+    
+    #$$$$$ Plot expression for top 1 diff expressed gene
+    # EXPR PLOT
+    topgenes = target[["LogFC_table"]]
+    copps = as.data.frame(cbind(colnames(sexyexprdata), as.numeric(sexyexprdata[rownames(topgenes)[1],]), as.numeric(sexyphenodata$Age)))
+    copps$V3 = as.numeric(as.character(copps$V3))
+    copps$V2 = as.double(as.character(copps$V2))
+    #copps$V2 = as.numeric(sub(",", ".", copps$V2))
+    copps = copps %>% arrange(V2)
+    ggplot(copps, aes(x = copps$V3, y = copps$V2, color = copps$V3)) + geom_point() + labs(colour = "age in months", x = "age", y = "Expression",title = paste("entrez ID", rownames(topgenes)[1], sep = " "))
+    # change months to weeks or years if needed in the next line:
+    target[["Topgene_expression"]] <- ggplot(copps, aes(x = copps$V3, y = copps$V2, color = copps$V3)) + geom_point() + labs(colour = "age in months", x = "age", y = "Expression",title = paste("entrez ID", rownames(topgenes)[1], sep = " "))
+    
+    # dump the data:
+    logFClist[["Mouse"]][["GSE132040"]][[tissue]][[sex]] <- target$LogFC_table
+    name = paste0("Mouse_GSE132040_", tissue)
+    gender = sex
+    pdf(paste0("./plots/", name, "_", gender, "_processeddensity", ".pdf"))
+    print(target$Processed_density)
+    dev.off()
+    pdf(paste0("./plots/", name, "_rawdensity", ".pdf"))
+    print(target$Raw_density)
+    dev.off()
+    pdf(paste0("./plots/", name, "_pca", ".pdf"))
+    print(target$PCA)
+    dev.off()
+    pdf(paste0("./plots/", name, "_", gender, "_topgeneexpression", ".pdf"))
+    print(target$Topgene_expression)
+    dev.off()
+    
+    # save progress
+    save(logFClist, file = "logFClist.RData")
+  }
+}
+  
+
+# 4 outliers in BAT:
+tissue = "BAT"
+
+filteredphenodata = subset(filteredphenodata1, tissue.ch1 == tissue)
+
+filteredexprdata = filteredexprdata2[, rownames(filteredphenodata)]
+filteredexprdata = na.omit(filteredexprdata)
+
+#$$$$$ filter genes with low expression
+# LOG2 (logarithmize if needed)
+logdata = log2(filteredexprdata + 1)
+# CHECK PEAK
+# (first look if there is a peak at low values of expression)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# save it:
+target[["Raw_density"]] <- ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# SMASH IT
+# (if there is one, filter it out)
+filteredexprdata$rowsum = rowSums(filteredexprdata > 70) # take only genes having more than
+#                                                                10 reads...
+filteredexprdata1 = filteredexprdata[filteredexprdata$rowsum > 3,] # ...in at least
+#                                                  one third of samples (here it is 3 samples)
+filteredexprdata = subset(filteredexprdata1, select = -c(rowsum))
+logdata = log2(filteredexprdata + 1)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+
+#$$$$$ Convert to Entrez (from Ensembl)(sum reads), and normalize with RLE
+# CONVERT GENES (convert and take means)
+source("FUN.Ensembl_mouse_dictionary_create_for_genesymbol.R")
+dic = Ensembl_mouse_dictionary_create(filteredexprdata)
+source("FUN.Ensembl_to_entrez.R")
+normdata = Ensembl_to_entrez(filteredexprdata, dic)
+source("FUN.RLE_normalization.R")
+normdata = RLE_normalization(normdata)
+normdata  = log2(normdata + 1)
+visualstack = stack(normdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+#$$$$$ PCA
+exprforpca = data.frame(t(scale(t(normdata))))
+pcamodel = prcomp(t(exprforpca))
+cluster_values = as.data.frame(pcamodel[['x']])
+cluster_plot = ggplot(cluster_values, aes(x = PC1, y = PC2))
+color_pca = filteredphenodata[, "Age"]
+cluster_plot + geom_point(aes(color = color_pca))
+
+cluster_plot + geom_point(aes(color = color_pca)) + geom_label_repel(aes(label=rownames(cluster_values)),hjust="inward", vjust="inward")
+
+filteredphenodata = subset(filteredphenodata1, tissue.ch1 == tissue)
+
+filteredphenodata = filteredphenodata[-which(rownames(filteredphenodata) == "GSM3835666"),]
+
+filteredexprdata = filteredexprdata2[, rownames(filteredphenodata)]
+filteredexprdata = na.omit(filteredexprdata)
+
+#$$$$$ filter genes with low expression
+# LOG2 (logarithmize if needed)
+logdata = log2(filteredexprdata + 1)
+# CHECK PEAK
+# (first look if there is a peak at low values of expression)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# save it:
+target[["Raw_density"]] <- ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# SMASH IT
+# (if there is one, filter it out)
+filteredexprdata$rowsum = rowSums(filteredexprdata > 70) # take only genes having more than
+#                                                                10 reads...
+filteredexprdata1 = filteredexprdata[filteredexprdata$rowsum > 3,] # ...in at least
+#                                                  one third of samples (here it is 3 samples)
+filteredexprdata = subset(filteredexprdata1, select = -c(rowsum))
+logdata = log2(filteredexprdata + 1)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+
+#$$$$$ Convert to Entrez (from Ensembl)(sum reads), and normalize with RLE
+# CONVERT GENES (convert and take means)
+source("FUN.Ensembl_mouse_dictionary_create_for_genesymbol.R")
+dic = Ensembl_mouse_dictionary_create(filteredexprdata)
+source("FUN.Ensembl_to_entrez.R")
+normdata = Ensembl_to_entrez(filteredexprdata, dic)
+source("FUN.RLE_normalization.R")
+normdata = RLE_normalization(normdata)
+normdata  = log2(normdata + 1)
+visualstack = stack(normdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+#$$$$$ PCA
+exprforpca = data.frame(t(scale(t(normdata))))
+pcamodel = prcomp(t(exprforpca))
+cluster_values = as.data.frame(pcamodel[['x']])
+cluster_plot = ggplot(cluster_values, aes(x = PC1, y = PC2))
+color_pca = filteredphenodata[, "Age"]
+cluster_plot + geom_point(aes(color = color_pca))
+
+cluster_plot + geom_point(aes(color = color_pca)) + geom_label_repel(aes(label=rownames(cluster_values)),hjust="inward", vjust="inward")
+cluster_plot + geom_point(aes(color = color_pca)) + geom_text_repel(aes(label=rownames(cluster_values)),hjust="inward", vjust="inward")
+
+filteredphenodata = subset(filteredphenodata1, tissue.ch1 == tissue)
+
+filteredphenodata = filteredphenodata[-c(which(rownames(filteredphenodata) == "GSM3835666"), which(rownames(filteredphenodata) == "GSM3835708"), which(rownames(filteredphenodata) == "GSM3835216"), which(rownames(filteredphenodata) == "GSM3835656"), which(rownames(filteredphenodata) == "GSM3835674")),]
+
+filteredexprdata = filteredexprdata2[, rownames(filteredphenodata)]
+filteredexprdata = na.omit(filteredexprdata)
+
+#$$$$$ filter genes with low expression
+# LOG2 (logarithmize if needed)
+logdata = log2(filteredexprdata + 1)
+# CHECK PEAK
+# (first look if there is a peak at low values of expression)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# save it:
+target[["Raw_density"]] <- ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# SMASH IT
+# (if there is one, filter it out)
+filteredexprdata$rowsum = rowSums(filteredexprdata > 70) # take only genes having more than
+#                                                                10 reads...
+filteredexprdata1 = filteredexprdata[filteredexprdata$rowsum > 3,] # ...in at least
+#                                                  one third of samples (here it is 3 samples)
+filteredexprdata = subset(filteredexprdata1, select = -c(rowsum))
+logdata = log2(filteredexprdata + 1)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+
+#$$$$$ Convert to Entrez (from Ensembl)(sum reads), and normalize with RLE
+# CONVERT GENES (convert and take means)
+source("FUN.Ensembl_mouse_dictionary_create_for_genesymbol.R")
+dic = Ensembl_mouse_dictionary_create(filteredexprdata)
+source("FUN.Ensembl_to_entrez.R")
+normdata = Ensembl_to_entrez(filteredexprdata, dic)
+source("FUN.RLE_normalization.R")
+normdata = RLE_normalization(normdata)
+normdata  = log2(normdata + 1)
+visualstack = stack(normdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+#$$$$$ PCA
+exprforpca = data.frame(t(scale(t(normdata))))
+pcamodel = prcomp(t(exprforpca))
+cluster_values = as.data.frame(pcamodel[['x']])
+cluster_plot = ggplot(cluster_values, aes(x = PC1, y = PC2))
+color_pca = filteredphenodata[, "Age"]
+cluster_plot + geom_point(aes(color = color_pca))
+
+
+# save it:
+target[["PCA"]] <- cluster_plot + geom_point(aes(color = color_pca))
+
+for (sex in unique(filteredphenodata$Sex.ch1)){
+  #$$$$$ Filter sex, scale before limma
+  # separate by sex
+  # SEPARATED ALREADY
+  # (if you have a separate column)
+  sexyphenodata = subset(filteredphenodata, Sex.ch1 == sex)
+  
+  # filter expression data
+  sexyexprdata = normdata[, rownames(sexyphenodata)]
+  
+  # Scale
+  sexyexprdata = data.frame(scale(sexyexprdata))
+  visualstack = stack(sexyexprdata)
+  ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+  # save it:
+  target[["Processed_density"]] <- ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+  
+  #$$$$$ Limma
+  # CONTINUOUS (design matrix for continuous data)
+  # sexyphenodata$Age = sub("m$", "", sexyphenodata$Age) # delete nonnumeric characters
+  sexyphenodata$Age = as.numeric(as.character(sexyphenodata$Age))
+  design_matrix = model.matrix(~ sexyphenodata$Age)
+  rownames(design_matrix) = rownames(sexyphenodata)
+  colnames(design_matrix) <- c("Intercept", "Age")
+  print(design_matrix)
+  
+  # Launch limma
+  contrast_matrix <- makeContrasts("Age", levels=design_matrix)
+  diffexprfit <- lmFit(sexyexprdata, design_matrix)
+  diffexprfitcontrast <- contrasts.fit(diffexprfit, contrast_matrix)
+  diffexprfitcontrast <- eBayes(diffexprfitcontrast)
+  target[["LogFC_table"]] <- topTable(diffexprfitcontrast, coef = "Age", number = Inf, adjust = "BH", confint = TRUE)
+  # calculate standard error
+  target[["LogFC_table"]]$SE = (target[["LogFC_table"]]$CI.R - target[["LogFC_table"]]$CI.L) / 3.92
+  
+  
+  #$$$$$ Plot expression for top 1 diff expressed gene
+  # EXPR PLOT
+  topgenes = target[["LogFC_table"]]
+  copps = as.data.frame(cbind(colnames(sexyexprdata), as.numeric(sexyexprdata[rownames(topgenes)[1],]), as.numeric(sexyphenodata$Age)))
+  copps$V3 = as.numeric(as.character(copps$V3))
+  copps$V2 = as.double(as.character(copps$V2))
+  #copps$V2 = as.numeric(sub(",", ".", copps$V2))
+  copps = copps %>% arrange(V2)
+  ggplot(copps, aes(x = copps$V3, y = copps$V2, color = copps$V3)) + geom_point() + labs(colour = "age in months", x = "age", y = "Expression",title = paste("entrez ID", rownames(topgenes)[1], sep = " "))
+  # change months to weeks or years if needed in the next line:
+  target[["Topgene_expression"]] <- ggplot(copps, aes(x = copps$V3, y = copps$V2, color = copps$V3)) + geom_point() + labs(colour = "age in months", x = "age", y = "Expression",title = paste("entrez ID", rownames(topgenes)[1], sep = " "))
+  
+  # dump the data:
+  logFClist[["Mouse"]][["GSE132040"]][[tissue]][[sex]] <- target$LogFC_table
+  name = paste0("Mouse_GSE132040_", tissue)
+  gender = sex
+  pdf(paste0("./plots/", name, "_", gender, "_processeddensity", ".pdf"))
+  print(target$Processed_density)
+  dev.off()
+  pdf(paste0("./plots/", name, "_rawdensity", ".pdf"))
+  print(target$Raw_density)
+  dev.off()
+  pdf(paste0("./plots/", name, "_pca", ".pdf"))
+  print(target$PCA)
+  dev.off()
+  pdf(paste0("./plots/", name, "_", gender, "_topgeneexpression", ".pdf"))
+  print(target$Topgene_expression)
+  dev.off()
+  
+  # save progress
+  save(logFClist, file = "logFClist.RData")
+}
+
+# 3 outliers in brain:
+tissue = "Brain"
+
+filteredphenodata = subset(filteredphenodata1, tissue.ch1 == tissue)
+
+filteredexprdata = filteredexprdata2[, rownames(filteredphenodata)]
+filteredexprdata = na.omit(filteredexprdata)
+
+#$$$$$ filter genes with low expression
+# LOG2 (logarithmize if needed)
+logdata = log2(filteredexprdata + 1)
+# CHECK PEAK
+# (first look if there is a peak at low values of expression)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# save it:
+target[["Raw_density"]] <- ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# SMASH IT
+# (if there is one, filter it out)
+filteredexprdata$rowsum = rowSums(filteredexprdata > 70) # take only genes having more than
+#                                                                10 reads...
+filteredexprdata1 = filteredexprdata[filteredexprdata$rowsum > 3,] # ...in at least
+#                                                  one third of samples (here it is 3 samples)
+filteredexprdata = subset(filteredexprdata1, select = -c(rowsum))
+logdata = log2(filteredexprdata + 1)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+
+#$$$$$ Convert to Entrez (from Ensembl)(sum reads), and normalize with RLE
+# CONVERT GENES (convert and take means)
+source("FUN.Ensembl_mouse_dictionary_create_for_genesymbol.R")
+dic = Ensembl_mouse_dictionary_create(filteredexprdata)
+source("FUN.Ensembl_to_entrez.R")
+normdata = Ensembl_to_entrez(filteredexprdata, dic)
+source("FUN.RLE_normalization.R")
+normdata = RLE_normalization(normdata)
+normdata  = log2(normdata + 1)
+visualstack = stack(normdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+#$$$$$ PCA
+exprforpca = data.frame(t(scale(t(normdata))))
+pcamodel = prcomp(t(exprforpca))
+cluster_values = as.data.frame(pcamodel[['x']])
+cluster_plot = ggplot(cluster_values, aes(x = PC1, y = PC2))
+color_pca = filteredphenodata[, "Age"]
+cluster_plot + geom_point(aes(color = color_pca))
+
+cluster_plot + geom_point(aes(color = color_pca)) + geom_label_repel(aes(label=rownames(cluster_values)),hjust="inward", vjust="inward")
+cluster_plot + geom_point(aes(color = color_pca)) + geom_text_repel(aes(label=rownames(cluster_values)),hjust="inward", vjust="inward")
+
+filteredphenodata = subset(filteredphenodata1, tissue.ch1 == tissue)
+
+filteredphenodata = filteredphenodata[-c(which(rownames(filteredphenodata) == "GSM3835428"), which(rownames(filteredphenodata) == "GSM3835538"), which(rownames(filteredphenodata) == "GSM3835262")),]
+
+filteredexprdata = filteredexprdata2[, rownames(filteredphenodata)]
+filteredexprdata = na.omit(filteredexprdata)
+
+#$$$$$ filter genes with low expression
+# LOG2 (logarithmize if needed)
+logdata = log2(filteredexprdata + 1)
+# CHECK PEAK
+# (first look if there is a peak at low values of expression)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# save it:
+target[["Raw_density"]] <- ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# SMASH IT
+# (if there is one, filter it out)
+filteredexprdata$rowsum = rowSums(filteredexprdata > 70) # take only genes having more than
+#                                                                10 reads...
+filteredexprdata1 = filteredexprdata[filteredexprdata$rowsum > 3,] # ...in at least
+#                                                  one third of samples (here it is 3 samples)
+filteredexprdata = subset(filteredexprdata1, select = -c(rowsum))
+logdata = log2(filteredexprdata + 1)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+
+#$$$$$ Convert to Entrez (from Ensembl)(sum reads), and normalize with RLE
+# CONVERT GENES (convert and take means)
+source("FUN.Ensembl_mouse_dictionary_create_for_genesymbol.R")
+dic = Ensembl_mouse_dictionary_create(filteredexprdata)
+source("FUN.Ensembl_to_entrez.R")
+normdata = Ensembl_to_entrez(filteredexprdata, dic)
+source("FUN.RLE_normalization.R")
+normdata = RLE_normalization(normdata)
+normdata  = log2(normdata + 1)
+visualstack = stack(normdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+#$$$$$ PCA
+exprforpca = data.frame(t(scale(t(normdata))))
+pcamodel = prcomp(t(exprforpca))
+cluster_values = as.data.frame(pcamodel[['x']])
+cluster_plot = ggplot(cluster_values, aes(x = PC1, y = PC2))
+color_pca = filteredphenodata[, "Age"]
+cluster_plot + geom_point(aes(color = color_pca))
+
+
+# save it:
+target[["PCA"]] <- cluster_plot + geom_point(aes(color = color_pca))
+
+for (sex in unique(filteredphenodata$Sex.ch1)){
+  #$$$$$ Filter sex, scale before limma
+  # separate by sex
+  # SEPARATED ALREADY
+  # (if you have a separate column)
+  sexyphenodata = subset(filteredphenodata, Sex.ch1 == sex)
+  
+  # filter expression data
+  sexyexprdata = normdata[, rownames(sexyphenodata)]
+  
+  # Scale
+  sexyexprdata = data.frame(scale(sexyexprdata))
+  visualstack = stack(sexyexprdata)
+  ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+  # save it:
+  target[["Processed_density"]] <- ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+  
+  #$$$$$ Limma
+  # CONTINUOUS (design matrix for continuous data)
+  # sexyphenodata$Age = sub("m$", "", sexyphenodata$Age) # delete nonnumeric characters
+  sexyphenodata$Age = as.numeric(as.character(sexyphenodata$Age))
+  design_matrix = model.matrix(~ sexyphenodata$Age)
+  rownames(design_matrix) = rownames(sexyphenodata)
+  colnames(design_matrix) <- c("Intercept", "Age")
+  print(design_matrix)
+  
+  # Launch limma
+  contrast_matrix <- makeContrasts("Age", levels=design_matrix)
+  diffexprfit <- lmFit(sexyexprdata, design_matrix)
+  diffexprfitcontrast <- contrasts.fit(diffexprfit, contrast_matrix)
+  diffexprfitcontrast <- eBayes(diffexprfitcontrast)
+  target[["LogFC_table"]] <- topTable(diffexprfitcontrast, coef = "Age", number = Inf, adjust = "BH", confint = TRUE)
+  # calculate standard error
+  target[["LogFC_table"]]$SE = (target[["LogFC_table"]]$CI.R - target[["LogFC_table"]]$CI.L) / 3.92
+  
+  
+  #$$$$$ Plot expression for top 1 diff expressed gene
+  # EXPR PLOT
+  topgenes = target[["LogFC_table"]]
+  copps = as.data.frame(cbind(colnames(sexyexprdata), as.numeric(sexyexprdata[rownames(topgenes)[1],]), as.numeric(sexyphenodata$Age)))
+  copps$V3 = as.numeric(as.character(copps$V3))
+  copps$V2 = as.double(as.character(copps$V2))
+  #copps$V2 = as.numeric(sub(",", ".", copps$V2))
+  copps = copps %>% arrange(V2)
+  ggplot(copps, aes(x = copps$V3, y = copps$V2, color = copps$V3)) + geom_point() + labs(colour = "age in months", x = "age", y = "Expression",title = paste("entrez ID", rownames(topgenes)[1], sep = " "))
+  # change months to weeks or years if needed in the next line:
+  target[["Topgene_expression"]] <- ggplot(copps, aes(x = copps$V3, y = copps$V2, color = copps$V3)) + geom_point() + labs(colour = "age in months", x = "age", y = "Expression",title = paste("entrez ID", rownames(topgenes)[1], sep = " "))
+  
+  # dump the data:
+  logFClist[["Mouse"]][["GSE132040"]][[tissue]][[sex]] <- target$LogFC_table
+  name = paste0("Mouse_GSE132040_", tissue)
+  gender = sex
+  pdf(paste0("./plots/", name, "_", gender, "_processeddensity", ".pdf"))
+  print(target$Processed_density)
+  dev.off()
+  pdf(paste0("./plots/", name, "_rawdensity", ".pdf"))
+  print(target$Raw_density)
+  dev.off()
+  pdf(paste0("./plots/", name, "_pca", ".pdf"))
+  print(target$PCA)
+  dev.off()
+  pdf(paste0("./plots/", name, "_", gender, "_topgeneexpression", ".pdf"))
+  print(target$Topgene_expression)
+  dev.off()
+  
+  # save progress
+  save(logFClist, file = "logFClist.RData")
+}
+
+
+# 4 outliers in GAT:
+tissue = "GAT"
+
+filteredphenodata = subset(filteredphenodata1, tissue.ch1 == tissue)
+
+filteredexprdata = filteredexprdata2[, rownames(filteredphenodata)]
+filteredexprdata = na.omit(filteredexprdata)
+
+#$$$$$ filter genes with low expression
+# LOG2 (logarithmize if needed)
+logdata = log2(filteredexprdata + 1)
+# CHECK PEAK
+# (first look if there is a peak at low values of expression)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# save it:
+target[["Raw_density"]] <- ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# SMASH IT
+# (if there is one, filter it out)
+filteredexprdata$rowsum = rowSums(filteredexprdata > 70) # take only genes having more than
+#                                                                10 reads...
+filteredexprdata1 = filteredexprdata[filteredexprdata$rowsum > 3,] # ...in at least
+#                                                  one third of samples (here it is 3 samples)
+filteredexprdata = subset(filteredexprdata1, select = -c(rowsum))
+logdata = log2(filteredexprdata + 1)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+
+#$$$$$ Convert to Entrez (from Ensembl)(sum reads), and normalize with RLE
+# CONVERT GENES (convert and take means)
+source("FUN.Ensembl_mouse_dictionary_create_for_genesymbol.R")
+dic = Ensembl_mouse_dictionary_create(filteredexprdata)
+source("FUN.Ensembl_to_entrez.R")
+normdata = Ensembl_to_entrez(filteredexprdata, dic)
+source("FUN.RLE_normalization.R")
+normdata = RLE_normalization(normdata)
+normdata  = log2(normdata + 1)
+visualstack = stack(normdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+#$$$$$ PCA
+exprforpca = data.frame(t(scale(t(normdata))))
+pcamodel = prcomp(t(exprforpca))
+cluster_values = as.data.frame(pcamodel[['x']])
+cluster_plot = ggplot(cluster_values, aes(x = PC1, y = PC2))
+color_pca = filteredphenodata[, "Age"]
+cluster_plot + geom_point(aes(color = color_pca))
+
+cluster_plot + geom_point(aes(color = color_pca)) + geom_label_repel(aes(label=rownames(cluster_values)),hjust="inward", vjust="inward")
+cluster_plot + geom_point(aes(color = color_pca)) + geom_text_repel(aes(label=rownames(cluster_values)),hjust="inward", vjust="inward")
+
+filteredphenodata = subset(filteredphenodata1, tissue.ch1 == tissue)
+
+filteredphenodata = filteredphenodata[-c(which(rownames(filteredphenodata) == "GSM3835489"), which(rownames(filteredphenodata) == "GSM3834991")),]
+
+filteredexprdata = filteredexprdata2[, rownames(filteredphenodata)]
+filteredexprdata = na.omit(filteredexprdata)
+
+#$$$$$ filter genes with low expression
+# LOG2 (logarithmize if needed)
+logdata = log2(filteredexprdata + 1)
+# CHECK PEAK
+# (first look if there is a peak at low values of expression)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# save it:
+target[["Raw_density"]] <- ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# SMASH IT
+# (if there is one, filter it out)
+filteredexprdata$rowsum = rowSums(filteredexprdata > 70) # take only genes having more than
+#                                                                10 reads...
+filteredexprdata1 = filteredexprdata[filteredexprdata$rowsum > 3,] # ...in at least
+#                                                  one third of samples (here it is 3 samples)
+filteredexprdata = subset(filteredexprdata1, select = -c(rowsum))
+logdata = log2(filteredexprdata + 1)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+
+#$$$$$ Convert to Entrez (from Ensembl)(sum reads), and normalize with RLE
+# CONVERT GENES (convert and take means)
+source("FUN.Ensembl_mouse_dictionary_create_for_genesymbol.R")
+dic = Ensembl_mouse_dictionary_create(filteredexprdata)
+source("FUN.Ensembl_to_entrez.R")
+normdata = Ensembl_to_entrez(filteredexprdata, dic)
+source("FUN.RLE_normalization.R")
+normdata = RLE_normalization(normdata)
+normdata  = log2(normdata + 1)
+visualstack = stack(normdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+#$$$$$ PCA
+exprforpca = data.frame(t(scale(t(normdata))))
+pcamodel = prcomp(t(exprforpca))
+cluster_values = as.data.frame(pcamodel[['x']])
+cluster_plot = ggplot(cluster_values, aes(x = PC1, y = PC2))
+color_pca = filteredphenodata[, "Age"]
+cluster_plot + geom_point(aes(color = color_pca))
+
+cluster_plot + geom_point(aes(color = color_pca)) + geom_text_repel(aes(label=rownames(cluster_values)),hjust="inward", vjust="inward")
+
+filteredphenodata = subset(filteredphenodata1, tissue.ch1 == tissue)
+
+filteredphenodata = filteredphenodata[-c(which(rownames(filteredphenodata) == "GSM3835489"), which(rownames(filteredphenodata) == "GSM3834991"), which(rownames(filteredphenodata) == "GSM3834903"), which(rownames(filteredphenodata) == "GSM3835541")),]
+
+filteredexprdata = filteredexprdata2[, rownames(filteredphenodata)]
+filteredexprdata = na.omit(filteredexprdata)
+
+#$$$$$ filter genes with low expression
+# LOG2 (logarithmize if needed)
+logdata = log2(filteredexprdata + 1)
+# CHECK PEAK
+# (first look if there is a peak at low values of expression)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# save it:
+target[["Raw_density"]] <- ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# SMASH IT
+# (if there is one, filter it out)
+filteredexprdata$rowsum = rowSums(filteredexprdata > 70) # take only genes having more than
+#                                                                10 reads...
+filteredexprdata1 = filteredexprdata[filteredexprdata$rowsum > 3,] # ...in at least
+#                                                  one third of samples (here it is 3 samples)
+filteredexprdata = subset(filteredexprdata1, select = -c(rowsum))
+logdata = log2(filteredexprdata + 1)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+
+#$$$$$ Convert to Entrez (from Ensembl)(sum reads), and normalize with RLE
+# CONVERT GENES (convert and take means)
+source("FUN.Ensembl_mouse_dictionary_create_for_genesymbol.R")
+dic = Ensembl_mouse_dictionary_create(filteredexprdata)
+source("FUN.Ensembl_to_entrez.R")
+normdata = Ensembl_to_entrez(filteredexprdata, dic)
+source("FUN.RLE_normalization.R")
+normdata = RLE_normalization(normdata)
+normdata  = log2(normdata + 1)
+visualstack = stack(normdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+#$$$$$ PCA
+exprforpca = data.frame(t(scale(t(normdata))))
+pcamodel = prcomp(t(exprforpca))
+cluster_values = as.data.frame(pcamodel[['x']])
+cluster_plot = ggplot(cluster_values, aes(x = PC1, y = PC2))
+color_pca = filteredphenodata[, "Age"]
+cluster_plot + geom_point(aes(color = color_pca))
+
+
+# save it:
+target[["PCA"]] <- cluster_plot + geom_point(aes(color = color_pca))
+
+for (sex in unique(filteredphenodata$Sex.ch1)){
+  #$$$$$ Filter sex, scale before limma
+  # separate by sex
+  # SEPARATED ALREADY
+  # (if you have a separate column)
+  sexyphenodata = subset(filteredphenodata, Sex.ch1 == sex)
+  
+  # filter expression data
+  sexyexprdata = normdata[, rownames(sexyphenodata)]
+  
+  # Scale
+  sexyexprdata = data.frame(scale(sexyexprdata))
+  visualstack = stack(sexyexprdata)
+  ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+  # save it:
+  target[["Processed_density"]] <- ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+  
+  #$$$$$ Limma
+  # CONTINUOUS (design matrix for continuous data)
+  # sexyphenodata$Age = sub("m$", "", sexyphenodata$Age) # delete nonnumeric characters
+  sexyphenodata$Age = as.numeric(as.character(sexyphenodata$Age))
+  design_matrix = model.matrix(~ sexyphenodata$Age)
+  rownames(design_matrix) = rownames(sexyphenodata)
+  colnames(design_matrix) <- c("Intercept", "Age")
+  print(design_matrix)
+  
+  # Launch limma
+  contrast_matrix <- makeContrasts("Age", levels=design_matrix)
+  diffexprfit <- lmFit(sexyexprdata, design_matrix)
+  diffexprfitcontrast <- contrasts.fit(diffexprfit, contrast_matrix)
+  diffexprfitcontrast <- eBayes(diffexprfitcontrast)
+  target[["LogFC_table"]] <- topTable(diffexprfitcontrast, coef = "Age", number = Inf, adjust = "BH", confint = TRUE)
+  # calculate standard error
+  target[["LogFC_table"]]$SE = (target[["LogFC_table"]]$CI.R - target[["LogFC_table"]]$CI.L) / 3.92
+  
+  
+  #$$$$$ Plot expression for top 1 diff expressed gene
+  # EXPR PLOT
+  topgenes = target[["LogFC_table"]]
+  copps = as.data.frame(cbind(colnames(sexyexprdata), as.numeric(sexyexprdata[rownames(topgenes)[1],]), as.numeric(sexyphenodata$Age)))
+  copps$V3 = as.numeric(as.character(copps$V3))
+  copps$V2 = as.double(as.character(copps$V2))
+  #copps$V2 = as.numeric(sub(",", ".", copps$V2))
+  copps = copps %>% arrange(V2)
+  ggplot(copps, aes(x = copps$V3, y = copps$V2, color = copps$V3)) + geom_point() + labs(colour = "age in months", x = "age", y = "Expression",title = paste("entrez ID", rownames(topgenes)[1], sep = " "))
+  # change months to weeks or years if needed in the next line:
+  target[["Topgene_expression"]] <- ggplot(copps, aes(x = copps$V3, y = copps$V2, color = copps$V3)) + geom_point() + labs(colour = "age in months", x = "age", y = "Expression",title = paste("entrez ID", rownames(topgenes)[1], sep = " "))
+  
+  # dump the data:
+  logFClist[["Mouse"]][["GSE132040"]][[tissue]][[sex]] <- target$LogFC_table
+  name = paste0("Mouse_GSE132040_", tissue)
+  gender = sex
+  pdf(paste0("./plots/", name, "_", gender, "_processeddensity", ".pdf"))
+  print(target$Processed_density)
+  dev.off()
+  pdf(paste0("./plots/", name, "_rawdensity", ".pdf"))
+  print(target$Raw_density)
+  dev.off()
+  pdf(paste0("./plots/", name, "_pca", ".pdf"))
+  print(target$PCA)
+  dev.off()
+  pdf(paste0("./plots/", name, "_", gender, "_topgeneexpression", ".pdf"))
+  print(target$Topgene_expression)
+  dev.off()
+  
+  # save progress
+  save(logFClist, file = "logFClist.RData")
+}
+
+# 1 outlier in heart:
+tissue = "Heart"
+
+filteredphenodata = subset(filteredphenodata1, tissue.ch1 == tissue)
+
+filteredexprdata = filteredexprdata2[, rownames(filteredphenodata)]
+filteredexprdata = na.omit(filteredexprdata)
+
+#$$$$$ filter genes with low expression
+# LOG2 (logarithmize if needed)
+logdata = log2(filteredexprdata + 1)
+# CHECK PEAK
+# (first look if there is a peak at low values of expression)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# save it:
+target[["Raw_density"]] <- ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# SMASH IT
+# (if there is one, filter it out)
+filteredexprdata$rowsum = rowSums(filteredexprdata > 70) # take only genes having more than
+#                                                                10 reads...
+filteredexprdata1 = filteredexprdata[filteredexprdata$rowsum > 3,] # ...in at least
+#                                                  one third of samples (here it is 3 samples)
+filteredexprdata = subset(filteredexprdata1, select = -c(rowsum))
+logdata = log2(filteredexprdata + 1)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+
+#$$$$$ Convert to Entrez (from Ensembl)(sum reads), and normalize with RLE
+# CONVERT GENES (convert and take means)
+source("FUN.Ensembl_mouse_dictionary_create_for_genesymbol.R")
+dic = Ensembl_mouse_dictionary_create(filteredexprdata)
+source("FUN.Ensembl_to_entrez.R")
+normdata = Ensembl_to_entrez(filteredexprdata, dic)
+source("FUN.RLE_normalization.R")
+normdata = RLE_normalization(normdata)
+normdata  = log2(normdata + 1)
+visualstack = stack(normdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+#$$$$$ PCA
+exprforpca = data.frame(t(scale(t(normdata))))
+pcamodel = prcomp(t(exprforpca))
+cluster_values = as.data.frame(pcamodel[['x']])
+cluster_plot = ggplot(cluster_values, aes(x = PC1, y = PC2))
+color_pca = filteredphenodata[, "Age"]
+cluster_plot + geom_point(aes(color = color_pca))
+
+cluster_plot + geom_point(aes(color = color_pca)) + geom_label_repel(aes(label=rownames(cluster_values)),hjust="inward", vjust="inward")
+cluster_plot + geom_point(aes(color = color_pca)) + geom_text_repel(aes(label=rownames(cluster_values)),hjust="inward", vjust="inward")
+
+filteredphenodata = subset(filteredphenodata1, tissue.ch1 == tissue)
+
+filteredphenodata = filteredphenodata[-c(which(rownames(filteredphenodata) == "GSM3835167")),]
+
+filteredexprdata = filteredexprdata2[, rownames(filteredphenodata)]
+filteredexprdata = na.omit(filteredexprdata)
+
+#$$$$$ filter genes with low expression
+# LOG2 (logarithmize if needed)
+logdata = log2(filteredexprdata + 1)
+# CHECK PEAK
+# (first look if there is a peak at low values of expression)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# save it:
+target[["Raw_density"]] <- ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# SMASH IT
+# (if there is one, filter it out)
+filteredexprdata$rowsum = rowSums(filteredexprdata > 70) # take only genes having more than
+#                                                                10 reads...
+filteredexprdata1 = filteredexprdata[filteredexprdata$rowsum > 3,] # ...in at least
+#                                                  one third of samples (here it is 3 samples)
+filteredexprdata = subset(filteredexprdata1, select = -c(rowsum))
+logdata = log2(filteredexprdata + 1)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+
+#$$$$$ Convert to Entrez (from Ensembl)(sum reads), and normalize with RLE
+# CONVERT GENES (convert and take means)
+source("FUN.Ensembl_mouse_dictionary_create_for_genesymbol.R")
+dic = Ensembl_mouse_dictionary_create(filteredexprdata)
+source("FUN.Ensembl_to_entrez.R")
+normdata = Ensembl_to_entrez(filteredexprdata, dic)
+source("FUN.RLE_normalization.R")
+normdata = RLE_normalization(normdata)
+normdata  = log2(normdata + 1)
+visualstack = stack(normdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+#$$$$$ PCA
+exprforpca = data.frame(t(scale(t(normdata))))
+pcamodel = prcomp(t(exprforpca))
+cluster_values = as.data.frame(pcamodel[['x']])
+cluster_plot = ggplot(cluster_values, aes(x = PC1, y = PC2))
+color_pca = filteredphenodata[, "Age"]
+cluster_plot + geom_point(aes(color = color_pca))
+
+# save it:
+target[["PCA"]] <- cluster_plot + geom_point(aes(color = color_pca))
+
+for (sex in unique(filteredphenodata$Sex.ch1)){
+  #$$$$$ Filter sex, scale before limma
+  # separate by sex
+  # SEPARATED ALREADY
+  # (if you have a separate column)
+  sexyphenodata = subset(filteredphenodata, Sex.ch1 == sex)
+  
+  # filter expression data
+  sexyexprdata = normdata[, rownames(sexyphenodata)]
+  
+  # Scale
+  sexyexprdata = data.frame(scale(sexyexprdata))
+  visualstack = stack(sexyexprdata)
+  ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+  # save it:
+  target[["Processed_density"]] <- ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+  
+  #$$$$$ Limma
+  # CONTINUOUS (design matrix for continuous data)
+  # sexyphenodata$Age = sub("m$", "", sexyphenodata$Age) # delete nonnumeric characters
+  sexyphenodata$Age = as.numeric(as.character(sexyphenodata$Age))
+  design_matrix = model.matrix(~ sexyphenodata$Age)
+  rownames(design_matrix) = rownames(sexyphenodata)
+  colnames(design_matrix) <- c("Intercept", "Age")
+  print(design_matrix)
+  
+  # Launch limma
+  contrast_matrix <- makeContrasts("Age", levels=design_matrix)
+  diffexprfit <- lmFit(sexyexprdata, design_matrix)
+  diffexprfitcontrast <- contrasts.fit(diffexprfit, contrast_matrix)
+  diffexprfitcontrast <- eBayes(diffexprfitcontrast)
+  target[["LogFC_table"]] <- topTable(diffexprfitcontrast, coef = "Age", number = Inf, adjust = "BH", confint = TRUE)
+  # calculate standard error
+  target[["LogFC_table"]]$SE = (target[["LogFC_table"]]$CI.R - target[["LogFC_table"]]$CI.L) / 3.92
+  
+  
+  #$$$$$ Plot expression for top 1 diff expressed gene
+  # EXPR PLOT
+  topgenes = target[["LogFC_table"]]
+  copps = as.data.frame(cbind(colnames(sexyexprdata), as.numeric(sexyexprdata[rownames(topgenes)[1],]), as.numeric(sexyphenodata$Age)))
+  copps$V3 = as.numeric(as.character(copps$V3))
+  copps$V2 = as.double(as.character(copps$V2))
+  #copps$V2 = as.numeric(sub(",", ".", copps$V2))
+  copps = copps %>% arrange(V2)
+  ggplot(copps, aes(x = copps$V3, y = copps$V2, color = copps$V3)) + geom_point() + labs(colour = "age in months", x = "age", y = "Expression",title = paste("entrez ID", rownames(topgenes)[1], sep = " "))
+  # change months to weeks or years if needed in the next line:
+  target[["Topgene_expression"]] <- ggplot(copps, aes(x = copps$V3, y = copps$V2, color = copps$V3)) + geom_point() + labs(colour = "age in months", x = "age", y = "Expression",title = paste("entrez ID", rownames(topgenes)[1], sep = " "))
+  
+  # dump the data:
+  logFClist[["Mouse"]][["GSE132040"]][[tissue]][[sex]] <- target$LogFC_table
+  name = paste0("Mouse_GSE132040_", tissue)
+  gender = sex
+  pdf(paste0("./plots/", name, "_", gender, "_processeddensity", ".pdf"))
+  print(target$Processed_density)
+  dev.off()
+  pdf(paste0("./plots/", name, "_rawdensity", ".pdf"))
+  print(target$Raw_density)
+  dev.off()
+  pdf(paste0("./plots/", name, "_pca", ".pdf"))
+  print(target$PCA)
+  dev.off()
+  pdf(paste0("./plots/", name, "_", gender, "_topgeneexpression", ".pdf"))
+  print(target$Topgene_expression)
+  dev.off()
+  
+  # save progress
+  save(logFClist, file = "logFClist.RData")
+}
+
+# 2 outliers in kidney:
+tissue = "Kidney"
+
+filteredphenodata = subset(filteredphenodata1, tissue.ch1 == tissue)
+
+filteredexprdata = filteredexprdata2[, rownames(filteredphenodata)]
+filteredexprdata = na.omit(filteredexprdata)
+
+#$$$$$ filter genes with low expression
+# LOG2 (logarithmize if needed)
+logdata = log2(filteredexprdata + 1)
+# CHECK PEAK
+# (first look if there is a peak at low values of expression)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# save it:
+target[["Raw_density"]] <- ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# SMASH IT
+# (if there is one, filter it out)
+filteredexprdata$rowsum = rowSums(filteredexprdata > 70) # take only genes having more than
+#                                                                10 reads...
+filteredexprdata1 = filteredexprdata[filteredexprdata$rowsum > 3,] # ...in at least
+#                                                  one third of samples (here it is 3 samples)
+filteredexprdata = subset(filteredexprdata1, select = -c(rowsum))
+logdata = log2(filteredexprdata + 1)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+
+#$$$$$ Convert to Entrez (from Ensembl)(sum reads), and normalize with RLE
+# CONVERT GENES (convert and take means)
+source("FUN.Ensembl_mouse_dictionary_create_for_genesymbol.R")
+dic = Ensembl_mouse_dictionary_create(filteredexprdata)
+source("FUN.Ensembl_to_entrez.R")
+normdata = Ensembl_to_entrez(filteredexprdata, dic)
+source("FUN.RLE_normalization.R")
+normdata = RLE_normalization(normdata)
+normdata  = log2(normdata + 1)
+visualstack = stack(normdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+#$$$$$ PCA
+exprforpca = data.frame(t(scale(t(normdata))))
+pcamodel = prcomp(t(exprforpca))
+cluster_values = as.data.frame(pcamodel[['x']])
+cluster_plot = ggplot(cluster_values, aes(x = PC1, y = PC2))
+color_pca = filteredphenodata[, "Age"]
+cluster_plot + geom_point(aes(color = color_pca))
+
+cluster_plot + geom_point(aes(color = color_pca)) + geom_text_repel(aes(label=rownames(cluster_values)),hjust="inward", vjust="inward")
+
+filteredphenodata = subset(filteredphenodata1, tissue.ch1 == tissue)
+
+filteredphenodata = filteredphenodata[-c(which(rownames(filteredphenodata) == "GSM3835678"), which(rownames(filteredphenodata) == "GSM3835215")),]
+
+filteredexprdata = filteredexprdata2[, rownames(filteredphenodata)]
+filteredexprdata = na.omit(filteredexprdata)
+
+#$$$$$ filter genes with low expression
+# LOG2 (logarithmize if needed)
+logdata = log2(filteredexprdata + 1)
+# CHECK PEAK
+# (first look if there is a peak at low values of expression)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# save it:
+target[["Raw_density"]] <- ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# SMASH IT
+# (if there is one, filter it out)
+filteredexprdata$rowsum = rowSums(filteredexprdata > 70) # take only genes having more than
+#                                                                10 reads...
+filteredexprdata1 = filteredexprdata[filteredexprdata$rowsum > 3,] # ...in at least
+#                                                  one third of samples (here it is 3 samples)
+filteredexprdata = subset(filteredexprdata1, select = -c(rowsum))
+logdata = log2(filteredexprdata + 1)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+
+#$$$$$ Convert to Entrez (from Ensembl)(sum reads), and normalize with RLE
+# CONVERT GENES (convert and take means)
+source("FUN.Ensembl_mouse_dictionary_create_for_genesymbol.R")
+dic = Ensembl_mouse_dictionary_create(filteredexprdata)
+source("FUN.Ensembl_to_entrez.R")
+normdata = Ensembl_to_entrez(filteredexprdata, dic)
+source("FUN.RLE_normalization.R")
+normdata = RLE_normalization(normdata)
+normdata  = log2(normdata + 1)
+visualstack = stack(normdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+#$$$$$ PCA
+exprforpca = data.frame(t(scale(t(normdata))))
+pcamodel = prcomp(t(exprforpca))
+cluster_values = as.data.frame(pcamodel[['x']])
+cluster_plot = ggplot(cluster_values, aes(x = PC1, y = PC2))
+color_pca = filteredphenodata[, "Age"]
+cluster_plot + geom_point(aes(color = color_pca))
+
+# save it:
+target[["PCA"]] <- cluster_plot + geom_point(aes(color = color_pca))
+
+for (sex in unique(filteredphenodata$Sex.ch1)){
+  #$$$$$ Filter sex, scale before limma
+  # separate by sex
+  # SEPARATED ALREADY
+  # (if you have a separate column)
+  sexyphenodata = subset(filteredphenodata, Sex.ch1 == sex)
+  
+  # filter expression data
+  sexyexprdata = normdata[, rownames(sexyphenodata)]
+  
+  # Scale
+  sexyexprdata = data.frame(scale(sexyexprdata))
+  visualstack = stack(sexyexprdata)
+  ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+  # save it:
+  target[["Processed_density"]] <- ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+  
+  #$$$$$ Limma
+  # CONTINUOUS (design matrix for continuous data)
+  # sexyphenodata$Age = sub("m$", "", sexyphenodata$Age) # delete nonnumeric characters
+  sexyphenodata$Age = as.numeric(as.character(sexyphenodata$Age))
+  design_matrix = model.matrix(~ sexyphenodata$Age)
+  rownames(design_matrix) = rownames(sexyphenodata)
+  colnames(design_matrix) <- c("Intercept", "Age")
+  print(design_matrix)
+  
+  # Launch limma
+  contrast_matrix <- makeContrasts("Age", levels=design_matrix)
+  diffexprfit <- lmFit(sexyexprdata, design_matrix)
+  diffexprfitcontrast <- contrasts.fit(diffexprfit, contrast_matrix)
+  diffexprfitcontrast <- eBayes(diffexprfitcontrast)
+  target[["LogFC_table"]] <- topTable(diffexprfitcontrast, coef = "Age", number = Inf, adjust = "BH", confint = TRUE)
+  # calculate standard error
+  target[["LogFC_table"]]$SE = (target[["LogFC_table"]]$CI.R - target[["LogFC_table"]]$CI.L) / 3.92
+  
+  
+  #$$$$$ Plot expression for top 1 diff expressed gene
+  # EXPR PLOT
+  topgenes = target[["LogFC_table"]]
+  copps = as.data.frame(cbind(colnames(sexyexprdata), as.numeric(sexyexprdata[rownames(topgenes)[1],]), as.numeric(sexyphenodata$Age)))
+  copps$V3 = as.numeric(as.character(copps$V3))
+  copps$V2 = as.double(as.character(copps$V2))
+  #copps$V2 = as.numeric(sub(",", ".", copps$V2))
+  copps = copps %>% arrange(V2)
+  ggplot(copps, aes(x = copps$V3, y = copps$V2, color = copps$V3)) + geom_point() + labs(colour = "age in months", x = "age", y = "Expression",title = paste("entrez ID", rownames(topgenes)[1], sep = " "))
+  # change months to weeks or years if needed in the next line:
+  target[["Topgene_expression"]] <- ggplot(copps, aes(x = copps$V3, y = copps$V2, color = copps$V3)) + geom_point() + labs(colour = "age in months", x = "age", y = "Expression",title = paste("entrez ID", rownames(topgenes)[1], sep = " "))
+  
+  # dump the data:
+  logFClist[["Mouse"]][["GSE132040"]][[tissue]][[sex]] <- target$LogFC_table
+  name = paste0("Mouse_GSE132040_", tissue)
+  gender = sex
+  pdf(paste0("./plots/", name, "_", gender, "_processeddensity", ".pdf"))
+  print(target$Processed_density)
+  dev.off()
+  pdf(paste0("./plots/", name, "_rawdensity", ".pdf"))
+  print(target$Raw_density)
+  dev.off()
+  pdf(paste0("./plots/", name, "_pca", ".pdf"))
+  print(target$PCA)
+  dev.off()
+  pdf(paste0("./plots/", name, "_", gender, "_topgeneexpression", ".pdf"))
+  print(target$Topgene_expression)
+  dev.off()
+  
+  # save progress
+  save(logFClist, file = "logFClist.RData")
+}
+
+
+# outliers in limb muscle:
+tissue = "Limb Muscle"
+
+filteredphenodata = subset(filteredphenodata1, tissue.ch1 == tissue)
+
+filteredexprdata = filteredexprdata2[, rownames(filteredphenodata)]
+filteredexprdata = na.omit(filteredexprdata)
+
+#$$$$$ filter genes with low expression
+# LOG2 (logarithmize if needed)
+logdata = log2(filteredexprdata + 1)
+# CHECK PEAK
+# (first look if there is a peak at low values of expression)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# save it:
+target[["Raw_density"]] <- ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# SMASH IT
+# (if there is one, filter it out)
+filteredexprdata$rowsum = rowSums(filteredexprdata > 70) # take only genes having more than
+#                                                                10 reads...
+filteredexprdata1 = filteredexprdata[filteredexprdata$rowsum > 3,] # ...in at least
+#                                                  one third of samples (here it is 3 samples)
+filteredexprdata = subset(filteredexprdata1, select = -c(rowsum))
+logdata = log2(filteredexprdata + 1)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+
+#$$$$$ Convert to Entrez (from Ensembl)(sum reads), and normalize with RLE
+# CONVERT GENES (convert and take means)
+source("FUN.Ensembl_mouse_dictionary_create_for_genesymbol.R")
+dic = Ensembl_mouse_dictionary_create(filteredexprdata)
+source("FUN.Ensembl_to_entrez.R")
+normdata = Ensembl_to_entrez(filteredexprdata, dic)
+source("FUN.RLE_normalization.R")
+normdata = RLE_normalization(normdata)
+normdata  = log2(normdata + 1)
+visualstack = stack(normdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+#$$$$$ PCA
+exprforpca = data.frame(t(scale(t(normdata))))
+pcamodel = prcomp(t(exprforpca))
+cluster_values = as.data.frame(pcamodel[['x']])
+cluster_plot = ggplot(cluster_values, aes(x = PC1, y = PC2))
+color_pca = filteredphenodata[, "Age"]
+cluster_plot + geom_point(aes(color = color_pca))
+
+cluster_plot + geom_point(aes(color = color_pca)) + geom_text_repel(aes(label=rownames(cluster_values)),hjust="inward", vjust="inward")
+
+filteredphenodata = subset(filteredphenodata1, tissue.ch1 == tissue)
+
+filteredphenodata = filteredphenodata[-c(which(rownames(filteredphenodata) == "GSM3835510"), which(rownames(filteredphenodata) == "GSM3834844")),]
+
+filteredexprdata = filteredexprdata2[, rownames(filteredphenodata)]
+filteredexprdata = na.omit(filteredexprdata)
+
+#$$$$$ filter genes with low expression
+# LOG2 (logarithmize if needed)
+logdata = log2(filteredexprdata + 1)
+# CHECK PEAK
+# (first look if there is a peak at low values of expression)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# save it:
+target[["Raw_density"]] <- ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# SMASH IT
+# (if there is one, filter it out)
+filteredexprdata$rowsum = rowSums(filteredexprdata > 70) # take only genes having more than
+#                                                                10 reads...
+filteredexprdata1 = filteredexprdata[filteredexprdata$rowsum > 3,] # ...in at least
+#                                                  one third of samples (here it is 3 samples)
+filteredexprdata = subset(filteredexprdata1, select = -c(rowsum))
+logdata = log2(filteredexprdata + 1)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+
+#$$$$$ Convert to Entrez (from Ensembl)(sum reads), and normalize with RLE
+# CONVERT GENES (convert and take means)
+source("FUN.Ensembl_mouse_dictionary_create_for_genesymbol.R")
+dic = Ensembl_mouse_dictionary_create(filteredexprdata)
+source("FUN.Ensembl_to_entrez.R")
+normdata = Ensembl_to_entrez(filteredexprdata, dic)
+source("FUN.RLE_normalization.R")
+normdata = RLE_normalization(normdata)
+normdata  = log2(normdata + 1)
+visualstack = stack(normdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+#$$$$$ PCA
+exprforpca = data.frame(t(scale(t(normdata))))
+pcamodel = prcomp(t(exprforpca))
+cluster_values = as.data.frame(pcamodel[['x']])
+cluster_plot = ggplot(cluster_values, aes(x = PC1, y = PC2))
+color_pca = filteredphenodata[, "Age"]
+cluster_plot + geom_point(aes(color = color_pca))
+
+# save it:
+target[["PCA"]] <- cluster_plot + geom_point(aes(color = color_pca))
+
+for (sex in unique(filteredphenodata$Sex.ch1)){
+  #$$$$$ Filter sex, scale before limma
+  # separate by sex
+  # SEPARATED ALREADY
+  # (if you have a separate column)
+  sexyphenodata = subset(filteredphenodata, Sex.ch1 == sex)
+  
+  # filter expression data
+  sexyexprdata = normdata[, rownames(sexyphenodata)]
+  
+  # Scale
+  sexyexprdata = data.frame(scale(sexyexprdata))
+  visualstack = stack(sexyexprdata)
+  ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+  # save it:
+  target[["Processed_density"]] <- ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+  
+  #$$$$$ Limma
+  # CONTINUOUS (design matrix for continuous data)
+  # sexyphenodata$Age = sub("m$", "", sexyphenodata$Age) # delete nonnumeric characters
+  sexyphenodata$Age = as.numeric(as.character(sexyphenodata$Age))
+  design_matrix = model.matrix(~ sexyphenodata$Age)
+  rownames(design_matrix) = rownames(sexyphenodata)
+  colnames(design_matrix) <- c("Intercept", "Age")
+  print(design_matrix)
+  
+  # Launch limma
+  contrast_matrix <- makeContrasts("Age", levels=design_matrix)
+  diffexprfit <- lmFit(sexyexprdata, design_matrix)
+  diffexprfitcontrast <- contrasts.fit(diffexprfit, contrast_matrix)
+  diffexprfitcontrast <- eBayes(diffexprfitcontrast)
+  target[["LogFC_table"]] <- topTable(diffexprfitcontrast, coef = "Age", number = Inf, adjust = "BH", confint = TRUE)
+  # calculate standard error
+  target[["LogFC_table"]]$SE = (target[["LogFC_table"]]$CI.R - target[["LogFC_table"]]$CI.L) / 3.92
+  
+  
+  #$$$$$ Plot expression for top 1 diff expressed gene
+  # EXPR PLOT
+  topgenes = target[["LogFC_table"]]
+  copps = as.data.frame(cbind(colnames(sexyexprdata), as.numeric(sexyexprdata[rownames(topgenes)[1],]), as.numeric(sexyphenodata$Age)))
+  copps$V3 = as.numeric(as.character(copps$V3))
+  copps$V2 = as.double(as.character(copps$V2))
+  #copps$V2 = as.numeric(sub(",", ".", copps$V2))
+  copps = copps %>% arrange(V2)
+  ggplot(copps, aes(x = copps$V3, y = copps$V2, color = copps$V3)) + geom_point() + labs(colour = "age in months", x = "age", y = "Expression",title = paste("entrez ID", rownames(topgenes)[1], sep = " "))
+  # change months to weeks or years if needed in the next line:
+  target[["Topgene_expression"]] <- ggplot(copps, aes(x = copps$V3, y = copps$V2, color = copps$V3)) + geom_point() + labs(colour = "age in months", x = "age", y = "Expression",title = paste("entrez ID", rownames(topgenes)[1], sep = " "))
+  
+  # dump the data:
+  logFClist[["Mouse"]][["GSE132040"]][[tissue]][[sex]] <- target$LogFC_table
+  name = paste0("Mouse_GSE132040_", tissue)
+  gender = sex
+  pdf(paste0("./plots/", name, "_", gender, "_processeddensity", ".pdf"))
+  print(target$Processed_density)
+  dev.off()
+  pdf(paste0("./plots/", name, "_rawdensity", ".pdf"))
+  print(target$Raw_density)
+  dev.off()
+  pdf(paste0("./plots/", name, "_pca", ".pdf"))
+  print(target$PCA)
+  dev.off()
+  pdf(paste0("./plots/", name, "_", gender, "_topgeneexpression", ".pdf"))
+  print(target$Topgene_expression)
+  dev.off()
+  
+  # save progress
+  save(logFClist, file = "logFClist.RData")
+}
+
+# outliers in liver:
+
+tissue = "Liver"
+
+filteredphenodata = subset(filteredphenodata1, tissue.ch1 == tissue)
+
+filteredexprdata = filteredexprdata2[, rownames(filteredphenodata)]
+filteredexprdata = na.omit(filteredexprdata)
+
+#$$$$$ filter genes with low expression
+# LOG2 (logarithmize if needed)
+logdata = log2(filteredexprdata + 1)
+# CHECK PEAK
+# (first look if there is a peak at low values of expression)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# save it:
+target[["Raw_density"]] <- ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# SMASH IT
+# (if there is one, filter it out)
+filteredexprdata$rowsum = rowSums(filteredexprdata > 70) # take only genes having more than
+#                                                                10 reads...
+filteredexprdata1 = filteredexprdata[filteredexprdata$rowsum > 3,] # ...in at least
+#                                                  one third of samples (here it is 3 samples)
+filteredexprdata = subset(filteredexprdata1, select = -c(rowsum))
+logdata = log2(filteredexprdata + 1)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+
+#$$$$$ Convert to Entrez (from Ensembl)(sum reads), and normalize with RLE
+# CONVERT GENES (convert and take means)
+source("FUN.Ensembl_mouse_dictionary_create_for_genesymbol.R")
+dic = Ensembl_mouse_dictionary_create(filteredexprdata)
+source("FUN.Ensembl_to_entrez.R")
+normdata = Ensembl_to_entrez(filteredexprdata, dic)
+source("FUN.RLE_normalization.R")
+normdata = RLE_normalization(normdata)
+normdata  = log2(normdata + 1)
+visualstack = stack(normdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+#$$$$$ PCA
+exprforpca = data.frame(t(scale(t(normdata))))
+pcamodel = prcomp(t(exprforpca))
+cluster_values = as.data.frame(pcamodel[['x']])
+cluster_plot = ggplot(cluster_values, aes(x = PC1, y = PC2))
+color_pca = filteredphenodata[, "Age"]
+cluster_plot + geom_point(aes(color = color_pca))
+
+cluster_plot + geom_point(aes(color = color_pca)) + geom_text_repel(aes(label=rownames(cluster_values)),hjust="inward", vjust="inward")
+
+filteredphenodata = subset(filteredphenodata1, tissue.ch1 == tissue)
+
+filteredphenodata = filteredphenodata[-c(which(rownames(filteredphenodata) == "GSM3835680"), which(rownames(filteredphenodata) == "GSM3835669"), which(rownames(filteredphenodata) == "GSM3835105")),]
+
+filteredexprdata = filteredexprdata2[, rownames(filteredphenodata)]
+filteredexprdata = na.omit(filteredexprdata)
+
+#$$$$$ filter genes with low expression
+# LOG2 (logarithmize if needed)
+logdata = log2(filteredexprdata + 1)
+# CHECK PEAK
+# (first look if there is a peak at low values of expression)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# save it:
+target[["Raw_density"]] <- ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# SMASH IT
+# (if there is one, filter it out)
+filteredexprdata$rowsum = rowSums(filteredexprdata > 70) # take only genes having more than
+#                                                                10 reads...
+filteredexprdata1 = filteredexprdata[filteredexprdata$rowsum > 3,] # ...in at least
+#                                                  one third of samples (here it is 3 samples)
+filteredexprdata = subset(filteredexprdata1, select = -c(rowsum))
+logdata = log2(filteredexprdata + 1)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+
+#$$$$$ Convert to Entrez (from Ensembl)(sum reads), and normalize with RLE
+# CONVERT GENES (convert and take means)
+source("FUN.Ensembl_mouse_dictionary_create_for_genesymbol.R")
+dic = Ensembl_mouse_dictionary_create(filteredexprdata)
+source("FUN.Ensembl_to_entrez.R")
+normdata = Ensembl_to_entrez(filteredexprdata, dic)
+source("FUN.RLE_normalization.R")
+normdata = RLE_normalization(normdata)
+normdata  = log2(normdata + 1)
+visualstack = stack(normdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+#$$$$$ PCA
+exprforpca = data.frame(t(scale(t(normdata))))
+pcamodel = prcomp(t(exprforpca))
+cluster_values = as.data.frame(pcamodel[['x']])
+cluster_plot = ggplot(cluster_values, aes(x = PC1, y = PC2))
+color_pca = filteredphenodata[, "Age"]
+cluster_plot + geom_point(aes(color = color_pca))
+
+# save it:
+target[["PCA"]] <- cluster_plot + geom_point(aes(color = color_pca))
+
+for (sex in unique(filteredphenodata$Sex.ch1)){
+  #$$$$$ Filter sex, scale before limma
+  # separate by sex
+  # SEPARATED ALREADY
+  # (if you have a separate column)
+  sexyphenodata = subset(filteredphenodata, Sex.ch1 == sex)
+  
+  # filter expression data
+  sexyexprdata = normdata[, rownames(sexyphenodata)]
+  
+  # Scale
+  sexyexprdata = data.frame(scale(sexyexprdata))
+  visualstack = stack(sexyexprdata)
+  ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+  # save it:
+  target[["Processed_density"]] <- ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+  
+  #$$$$$ Limma
+  # CONTINUOUS (design matrix for continuous data)
+  # sexyphenodata$Age = sub("m$", "", sexyphenodata$Age) # delete nonnumeric characters
+  sexyphenodata$Age = as.numeric(as.character(sexyphenodata$Age))
+  design_matrix = model.matrix(~ sexyphenodata$Age)
+  rownames(design_matrix) = rownames(sexyphenodata)
+  colnames(design_matrix) <- c("Intercept", "Age")
+  print(design_matrix)
+  
+  # Launch limma
+  contrast_matrix <- makeContrasts("Age", levels=design_matrix)
+  diffexprfit <- lmFit(sexyexprdata, design_matrix)
+  diffexprfitcontrast <- contrasts.fit(diffexprfit, contrast_matrix)
+  diffexprfitcontrast <- eBayes(diffexprfitcontrast)
+  target[["LogFC_table"]] <- topTable(diffexprfitcontrast, coef = "Age", number = Inf, adjust = "BH", confint = TRUE)
+  # calculate standard error
+  target[["LogFC_table"]]$SE = (target[["LogFC_table"]]$CI.R - target[["LogFC_table"]]$CI.L) / 3.92
+  
+  
+  #$$$$$ Plot expression for top 1 diff expressed gene
+  # EXPR PLOT
+  topgenes = target[["LogFC_table"]]
+  copps = as.data.frame(cbind(colnames(sexyexprdata), as.numeric(sexyexprdata[rownames(topgenes)[1],]), as.numeric(sexyphenodata$Age)))
+  copps$V3 = as.numeric(as.character(copps$V3))
+  copps$V2 = as.double(as.character(copps$V2))
+  #copps$V2 = as.numeric(sub(",", ".", copps$V2))
+  copps = copps %>% arrange(V2)
+  ggplot(copps, aes(x = copps$V3, y = copps$V2, color = copps$V3)) + geom_point() + labs(colour = "age in months", x = "age", y = "Expression",title = paste("entrez ID", rownames(topgenes)[1], sep = " "))
+  # change months to weeks or years if needed in the next line:
+  target[["Topgene_expression"]] <- ggplot(copps, aes(x = copps$V3, y = copps$V2, color = copps$V3)) + geom_point() + labs(colour = "age in months", x = "age", y = "Expression",title = paste("entrez ID", rownames(topgenes)[1], sep = " "))
+  
+  # dump the data:
+  logFClist[["Mouse"]][["GSE132040"]][[tissue]][[sex]] <- target$LogFC_table
+  name = paste0("Mouse_GSE132040_", tissue)
+  gender = sex
+  pdf(paste0("./plots/", name, "_", gender, "_processeddensity", ".pdf"))
+  print(target$Processed_density)
+  dev.off()
+  pdf(paste0("./plots/", name, "_rawdensity", ".pdf"))
+  print(target$Raw_density)
+  dev.off()
+  pdf(paste0("./plots/", name, "_pca", ".pdf"))
+  print(target$PCA)
+  dev.off()
+  pdf(paste0("./plots/", name, "_", gender, "_topgeneexpression", ".pdf"))
+  print(target$Topgene_expression)
+  dev.off()
+  
+  # save progress
+  save(logFClist, file = "logFClist.RData")
+}
+
+
+# 2 outliers in lung:
+tissue = "Lung"
+
+filteredphenodata = subset(filteredphenodata1, tissue.ch1 == tissue)
+
+filteredexprdata = filteredexprdata2[, rownames(filteredphenodata)]
+filteredexprdata = na.omit(filteredexprdata)
+
+#$$$$$ filter genes with low expression
+# LOG2 (logarithmize if needed)
+logdata = log2(filteredexprdata + 1)
+# CHECK PEAK
+# (first look if there is a peak at low values of expression)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# save it:
+target[["Raw_density"]] <- ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# SMASH IT
+# (if there is one, filter it out)
+filteredexprdata$rowsum = rowSums(filteredexprdata > 70) # take only genes having more than
+#                                                                10 reads...
+filteredexprdata1 = filteredexprdata[filteredexprdata$rowsum > 3,] # ...in at least
+#                                                  one third of samples (here it is 3 samples)
+filteredexprdata = subset(filteredexprdata1, select = -c(rowsum))
+logdata = log2(filteredexprdata + 1)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+
+#$$$$$ Convert to Entrez (from Ensembl)(sum reads), and normalize with RLE
+# CONVERT GENES (convert and take means)
+source("FUN.Ensembl_mouse_dictionary_create_for_genesymbol.R")
+dic = Ensembl_mouse_dictionary_create(filteredexprdata)
+source("FUN.Ensembl_to_entrez.R")
+normdata = Ensembl_to_entrez(filteredexprdata, dic)
+source("FUN.RLE_normalization.R")
+normdata = RLE_normalization(normdata)
+normdata  = log2(normdata + 1)
+visualstack = stack(normdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+#$$$$$ PCA
+exprforpca = data.frame(t(scale(t(normdata))))
+pcamodel = prcomp(t(exprforpca))
+cluster_values = as.data.frame(pcamodel[['x']])
+cluster_plot = ggplot(cluster_values, aes(x = PC1, y = PC2))
+color_pca = filteredphenodata[, "Age"]
+cluster_plot + geom_point(aes(color = color_pca))
+
+cluster_plot + geom_point(aes(color = color_pca)) + geom_text_repel(aes(label=rownames(cluster_values)),hjust="inward", vjust="inward")
+
+filteredphenodata = subset(filteredphenodata1, tissue.ch1 == tissue)
+
+filteredphenodata = filteredphenodata[-c(which(rownames(filteredphenodata) == "GSM3835107"), which(rownames(filteredphenodata) == "GSM3835406")),]
+
+filteredexprdata = filteredexprdata2[, rownames(filteredphenodata)]
+filteredexprdata = na.omit(filteredexprdata)
+
+#$$$$$ filter genes with low expression
+# LOG2 (logarithmize if needed)
+logdata = log2(filteredexprdata + 1)
+# CHECK PEAK
+# (first look if there is a peak at low values of expression)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# save it:
+target[["Raw_density"]] <- ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# SMASH IT
+# (if there is one, filter it out)
+filteredexprdata$rowsum = rowSums(filteredexprdata > 70) # take only genes having more than
+#                                                                10 reads...
+filteredexprdata1 = filteredexprdata[filteredexprdata$rowsum > 3,] # ...in at least
+#                                                  one third of samples (here it is 3 samples)
+filteredexprdata = subset(filteredexprdata1, select = -c(rowsum))
+logdata = log2(filteredexprdata + 1)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+
+#$$$$$ Convert to Entrez (from Ensembl)(sum reads), and normalize with RLE
+# CONVERT GENES (convert and take means)
+source("FUN.Ensembl_mouse_dictionary_create_for_genesymbol.R")
+dic = Ensembl_mouse_dictionary_create(filteredexprdata)
+source("FUN.Ensembl_to_entrez.R")
+normdata = Ensembl_to_entrez(filteredexprdata, dic)
+source("FUN.RLE_normalization.R")
+normdata = RLE_normalization(normdata)
+normdata  = log2(normdata + 1)
+visualstack = stack(normdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+#$$$$$ PCA
+exprforpca = data.frame(t(scale(t(normdata))))
+pcamodel = prcomp(t(exprforpca))
+cluster_values = as.data.frame(pcamodel[['x']])
+cluster_plot = ggplot(cluster_values, aes(x = PC1, y = PC2))
+color_pca = filteredphenodata[, "Age"]
+cluster_plot + geom_point(aes(color = color_pca))
+
+# save it:
+target[["PCA"]] <- cluster_plot + geom_point(aes(color = color_pca))
+
+for (sex in unique(filteredphenodata$Sex.ch1)){
+  #$$$$$ Filter sex, scale before limma
+  # separate by sex
+  # SEPARATED ALREADY
+  # (if you have a separate column)
+  sexyphenodata = subset(filteredphenodata, Sex.ch1 == sex)
+  
+  # filter expression data
+  sexyexprdata = normdata[, rownames(sexyphenodata)]
+  
+  # Scale
+  sexyexprdata = data.frame(scale(sexyexprdata))
+  visualstack = stack(sexyexprdata)
+  ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+  # save it:
+  target[["Processed_density"]] <- ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+  
+  #$$$$$ Limma
+  # CONTINUOUS (design matrix for continuous data)
+  # sexyphenodata$Age = sub("m$", "", sexyphenodata$Age) # delete nonnumeric characters
+  sexyphenodata$Age = as.numeric(as.character(sexyphenodata$Age))
+  design_matrix = model.matrix(~ sexyphenodata$Age)
+  rownames(design_matrix) = rownames(sexyphenodata)
+  colnames(design_matrix) <- c("Intercept", "Age")
+  print(design_matrix)
+  
+  # Launch limma
+  contrast_matrix <- makeContrasts("Age", levels=design_matrix)
+  diffexprfit <- lmFit(sexyexprdata, design_matrix)
+  diffexprfitcontrast <- contrasts.fit(diffexprfit, contrast_matrix)
+  diffexprfitcontrast <- eBayes(diffexprfitcontrast)
+  target[["LogFC_table"]] <- topTable(diffexprfitcontrast, coef = "Age", number = Inf, adjust = "BH", confint = TRUE)
+  # calculate standard error
+  target[["LogFC_table"]]$SE = (target[["LogFC_table"]]$CI.R - target[["LogFC_table"]]$CI.L) / 3.92
+  
+  
+  #$$$$$ Plot expression for top 1 diff expressed gene
+  # EXPR PLOT
+  topgenes = target[["LogFC_table"]]
+  copps = as.data.frame(cbind(colnames(sexyexprdata), as.numeric(sexyexprdata[rownames(topgenes)[1],]), as.numeric(sexyphenodata$Age)))
+  copps$V3 = as.numeric(as.character(copps$V3))
+  copps$V2 = as.double(as.character(copps$V2))
+  #copps$V2 = as.numeric(sub(",", ".", copps$V2))
+  copps = copps %>% arrange(V2)
+  ggplot(copps, aes(x = copps$V3, y = copps$V2, color = copps$V3)) + geom_point() + labs(colour = "age in months", x = "age", y = "Expression",title = paste("entrez ID", rownames(topgenes)[1], sep = " "))
+  # change months to weeks or years if needed in the next line:
+  target[["Topgene_expression"]] <- ggplot(copps, aes(x = copps$V3, y = copps$V2, color = copps$V3)) + geom_point() + labs(colour = "age in months", x = "age", y = "Expression",title = paste("entrez ID", rownames(topgenes)[1], sep = " "))
+  
+  # dump the data:
+  logFClist[["Mouse"]][["GSE132040"]][[tissue]][[sex]] <- target$LogFC_table
+  name = paste0("Mouse_GSE132040_", tissue)
+  gender = sex
+  pdf(paste0("./plots/", name, "_", gender, "_processeddensity", ".pdf"))
+  print(target$Processed_density)
+  dev.off()
+  pdf(paste0("./plots/", name, "_rawdensity", ".pdf"))
+  print(target$Raw_density)
+  dev.off()
+  pdf(paste0("./plots/", name, "_pca", ".pdf"))
+  print(target$PCA)
+  dev.off()
+  pdf(paste0("./plots/", name, "_", gender, "_topgeneexpression", ".pdf"))
+  print(target$Topgene_expression)
+  dev.off()
+  
+  # save progress
+  save(logFClist, file = "logFClist.RData")
+}
+
+
+# outliers in marrow:
+tissue = "Marrow"
+
+filteredphenodata = subset(filteredphenodata1, tissue.ch1 == tissue)
+
+filteredexprdata = filteredexprdata2[, rownames(filteredphenodata)]
+filteredexprdata = na.omit(filteredexprdata)
+
+#$$$$$ filter genes with low expression
+# LOG2 (logarithmize if needed)
+logdata = log2(filteredexprdata + 1)
+# CHECK PEAK
+# (first look if there is a peak at low values of expression)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# save it:
+target[["Raw_density"]] <- ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# SMASH IT
+# (if there is one, filter it out)
+filteredexprdata$rowsum = rowSums(filteredexprdata > 70) # take only genes having more than
+#                                                                10 reads...
+filteredexprdata1 = filteredexprdata[filteredexprdata$rowsum > 3,] # ...in at least
+#                                                  one third of samples (here it is 3 samples)
+filteredexprdata = subset(filteredexprdata1, select = -c(rowsum))
+logdata = log2(filteredexprdata + 1)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+
+#$$$$$ Convert to Entrez (from Ensembl)(sum reads), and normalize with RLE
+# CONVERT GENES (convert and take means)
+source("FUN.Ensembl_mouse_dictionary_create_for_genesymbol.R")
+dic = Ensembl_mouse_dictionary_create(filteredexprdata)
+source("FUN.Ensembl_to_entrez.R")
+normdata = Ensembl_to_entrez(filteredexprdata, dic)
+source("FUN.RLE_normalization.R")
+normdata = RLE_normalization(normdata)
+normdata  = log2(normdata + 1)
+visualstack = stack(normdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+#$$$$$ PCA
+exprforpca = data.frame(t(scale(t(normdata))))
+pcamodel = prcomp(t(exprforpca))
+cluster_values = as.data.frame(pcamodel[['x']])
+cluster_plot = ggplot(cluster_values, aes(x = PC1, y = PC2))
+color_pca = filteredphenodata[, "Age"]
+cluster_plot + geom_point(aes(color = color_pca))
+
+cluster_plot + geom_point(aes(color = color_pca)) + geom_text_repel(aes(label=rownames(cluster_values)),hjust="inward", vjust="inward")
+
+filteredphenodata = subset(filteredphenodata1, tissue.ch1 == tissue)
+
+filteredphenodata = filteredphenodata[-c(which(rownames(filteredphenodata) == "GSM3835516"), which(rownames(filteredphenodata) == "GSM3835363")),]
+
+filteredexprdata = filteredexprdata2[, rownames(filteredphenodata)]
+filteredexprdata = na.omit(filteredexprdata)
+
+#$$$$$ filter genes with low expression
+# LOG2 (logarithmize if needed)
+logdata = log2(filteredexprdata + 1)
+# CHECK PEAK
+# (first look if there is a peak at low values of expression)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# save it:
+target[["Raw_density"]] <- ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# SMASH IT
+# (if there is one, filter it out)
+filteredexprdata$rowsum = rowSums(filteredexprdata > 70) # take only genes having more than
+#                                                                10 reads...
+filteredexprdata1 = filteredexprdata[filteredexprdata$rowsum > 3,] # ...in at least
+#                                                  one third of samples (here it is 3 samples)
+filteredexprdata = subset(filteredexprdata1, select = -c(rowsum))
+logdata = log2(filteredexprdata + 1)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+
+#$$$$$ Convert to Entrez (from Ensembl)(sum reads), and normalize with RLE
+# CONVERT GENES (convert and take means)
+source("FUN.Ensembl_mouse_dictionary_create_for_genesymbol.R")
+dic = Ensembl_mouse_dictionary_create(filteredexprdata)
+source("FUN.Ensembl_to_entrez.R")
+normdata = Ensembl_to_entrez(filteredexprdata, dic)
+source("FUN.RLE_normalization.R")
+normdata = RLE_normalization(normdata)
+normdata  = log2(normdata + 1)
+visualstack = stack(normdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+#$$$$$ PCA
+exprforpca = data.frame(t(scale(t(normdata))))
+pcamodel = prcomp(t(exprforpca))
+cluster_values = as.data.frame(pcamodel[['x']])
+cluster_plot = ggplot(cluster_values, aes(x = PC1, y = PC2))
+color_pca = filteredphenodata[, "Age"]
+cluster_plot + geom_point(aes(color = color_pca))
+
+# save it:
+target[["PCA"]] <- cluster_plot + geom_point(aes(color = color_pca))
+
+for (sex in unique(filteredphenodata$Sex.ch1)){
+  #$$$$$ Filter sex, scale before limma
+  # separate by sex
+  # SEPARATED ALREADY
+  # (if you have a separate column)
+  sexyphenodata = subset(filteredphenodata, Sex.ch1 == sex)
+  
+  # filter expression data
+  sexyexprdata = normdata[, rownames(sexyphenodata)]
+  
+  # Scale
+  sexyexprdata = data.frame(scale(sexyexprdata))
+  visualstack = stack(sexyexprdata)
+  ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+  # save it:
+  target[["Processed_density"]] <- ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+  
+  #$$$$$ Limma
+  # CONTINUOUS (design matrix for continuous data)
+  # sexyphenodata$Age = sub("m$", "", sexyphenodata$Age) # delete nonnumeric characters
+  sexyphenodata$Age = as.numeric(as.character(sexyphenodata$Age))
+  design_matrix = model.matrix(~ sexyphenodata$Age)
+  rownames(design_matrix) = rownames(sexyphenodata)
+  colnames(design_matrix) <- c("Intercept", "Age")
+  print(design_matrix)
+  
+  # Launch limma
+  contrast_matrix <- makeContrasts("Age", levels=design_matrix)
+  diffexprfit <- lmFit(sexyexprdata, design_matrix)
+  diffexprfitcontrast <- contrasts.fit(diffexprfit, contrast_matrix)
+  diffexprfitcontrast <- eBayes(diffexprfitcontrast)
+  target[["LogFC_table"]] <- topTable(diffexprfitcontrast, coef = "Age", number = Inf, adjust = "BH", confint = TRUE)
+  # calculate standard error
+  target[["LogFC_table"]]$SE = (target[["LogFC_table"]]$CI.R - target[["LogFC_table"]]$CI.L) / 3.92
+  
+  
+  #$$$$$ Plot expression for top 1 diff expressed gene
+  # EXPR PLOT
+  topgenes = target[["LogFC_table"]]
+  copps = as.data.frame(cbind(colnames(sexyexprdata), as.numeric(sexyexprdata[rownames(topgenes)[1],]), as.numeric(sexyphenodata$Age)))
+  copps$V3 = as.numeric(as.character(copps$V3))
+  copps$V2 = as.double(as.character(copps$V2))
+  #copps$V2 = as.numeric(sub(",", ".", copps$V2))
+  copps = copps %>% arrange(V2)
+  ggplot(copps, aes(x = copps$V3, y = copps$V2, color = copps$V3)) + geom_point() + labs(colour = "age in months", x = "age", y = "Expression",title = paste("entrez ID", rownames(topgenes)[1], sep = " "))
+  # change months to weeks or years if needed in the next line:
+  target[["Topgene_expression"]] <- ggplot(copps, aes(x = copps$V3, y = copps$V2, color = copps$V3)) + geom_point() + labs(colour = "age in months", x = "age", y = "Expression",title = paste("entrez ID", rownames(topgenes)[1], sep = " "))
+  
+  # dump the data:
+  logFClist[["Mouse"]][["GSE132040"]][[tissue]][[sex]] <- target$LogFC_table
+  name = paste0("Mouse_GSE132040_", tissue)
+  gender = sex
+  pdf(paste0("./plots/", name, "_", gender, "_processeddensity", ".pdf"))
+  print(target$Processed_density)
+  dev.off()
+  pdf(paste0("./plots/", name, "_rawdensity", ".pdf"))
+  print(target$Raw_density)
+  dev.off()
+  pdf(paste0("./plots/", name, "_pca", ".pdf"))
+  print(target$PCA)
+  dev.off()
+  pdf(paste0("./plots/", name, "_", gender, "_topgeneexpression", ".pdf"))
+  print(target$Topgene_expression)
+  dev.off()
+  
+  # save progress
+  save(logFClist, file = "logFClist.RData")
+}
+
+# outliers in pancreas:
+tissue = "Pancreas"
+
+filteredphenodata = subset(filteredphenodata1, tissue.ch1 == tissue)
+
+filteredexprdata = filteredexprdata2[, rownames(filteredphenodata)]
+filteredexprdata = na.omit(filteredexprdata)
+
+#$$$$$ filter genes with low expression
+# LOG2 (logarithmize if needed)
+logdata = log2(filteredexprdata + 1)
+# CHECK PEAK
+# (first look if there is a peak at low values of expression)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# save it:
+target[["Raw_density"]] <- ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# SMASH IT
+# (if there is one, filter it out)
+filteredexprdata$rowsum = rowSums(filteredexprdata > 70) # take only genes having more than
+#                                                                10 reads...
+filteredexprdata1 = filteredexprdata[filteredexprdata$rowsum > 3,] # ...in at least
+#                                                  one third of samples (here it is 3 samples)
+filteredexprdata = subset(filteredexprdata1, select = -c(rowsum))
+logdata = log2(filteredexprdata + 1)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+
+#$$$$$ Convert to Entrez (from Ensembl)(sum reads), and normalize with RLE
+# CONVERT GENES (convert and take means)
+source("FUN.Ensembl_mouse_dictionary_create_for_genesymbol.R")
+dic = Ensembl_mouse_dictionary_create(filteredexprdata)
+source("FUN.Ensembl_to_entrez.R")
+normdata = Ensembl_to_entrez(filteredexprdata, dic)
+source("FUN.RLE_normalization.R")
+normdata = RLE_normalization(normdata)
+normdata  = log2(normdata + 1)
+visualstack = stack(normdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+#$$$$$ PCA
+exprforpca = data.frame(t(scale(t(normdata))))
+pcamodel = prcomp(t(exprforpca))
+cluster_values = as.data.frame(pcamodel[['x']])
+cluster_plot = ggplot(cluster_values, aes(x = PC1, y = PC2))
+color_pca = filteredphenodata[, "Age"]
+cluster_plot + geom_point(aes(color = color_pca))
+
+cluster_plot + geom_point(aes(color = color_pca)) + geom_text_repel(aes(label=rownames(cluster_values)),hjust="inward", vjust="inward")
+
+filteredphenodata = subset(filteredphenodata1, tissue.ch1 == tissue)
+
+filteredphenodata = filteredphenodata[-c(which(rownames(filteredphenodata) == "GSM3835224"), which(rownames(filteredphenodata) == "GSM3835493"), which(rownames(filteredphenodata) == "GSM3835498"), which(rownames(filteredphenodata) == "GSM3835165")),]
+
+filteredexprdata = filteredexprdata2[, rownames(filteredphenodata)]
+filteredexprdata = na.omit(filteredexprdata)
+
+#$$$$$ filter genes with low expression
+# LOG2 (logarithmize if needed)
+logdata = log2(filteredexprdata + 1)
+# CHECK PEAK
+# (first look if there is a peak at low values of expression)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# save it:
+target[["Raw_density"]] <- ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# SMASH IT
+# (if there is one, filter it out)
+filteredexprdata$rowsum = rowSums(filteredexprdata > 100) # take only genes having more than
+#                                                                10 reads...
+filteredexprdata1 = filteredexprdata[filteredexprdata$rowsum > 3,] # ...in at least
+#                                                  one third of samples (here it is 3 samples)
+filteredexprdata = subset(filteredexprdata1, select = -c(rowsum))
+logdata = log2(filteredexprdata + 1)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+
+#$$$$$ Convert to Entrez (from Ensembl)(sum reads), and normalize with RLE
+# CONVERT GENES (convert and take means)
+source("FUN.Ensembl_mouse_dictionary_create_for_genesymbol.R")
+dic = Ensembl_mouse_dictionary_create(filteredexprdata)
+source("FUN.Ensembl_to_entrez.R")
+normdata = Ensembl_to_entrez(filteredexprdata, dic)
+source("FUN.RLE_normalization.R")
+normdata = RLE_normalization(normdata)
+normdata  = log2(normdata + 1)
+visualstack = stack(normdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+#$$$$$ PCA
+exprforpca = data.frame(t(scale(t(normdata))))
+pcamodel = prcomp(t(exprforpca))
+cluster_values = as.data.frame(pcamodel[['x']])
+cluster_plot = ggplot(cluster_values, aes(x = PC1, y = PC2))
+color_pca = filteredphenodata[, "Age"]
+cluster_plot + geom_point(aes(color = color_pca))
+
+# save it:
+target[["PCA"]] <- cluster_plot + geom_point(aes(color = color_pca))
+
+for (sex in unique(filteredphenodata$Sex.ch1)){
+  #$$$$$ Filter sex, scale before limma
+  # separate by sex
+  # SEPARATED ALREADY
+  # (if you have a separate column)
+  sexyphenodata = subset(filteredphenodata, Sex.ch1 == sex)
+  
+  # filter expression data
+  sexyexprdata = normdata[, rownames(sexyphenodata)]
+  
+  # Scale
+  sexyexprdata = data.frame(scale(sexyexprdata))
+  visualstack = stack(sexyexprdata)
+  ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+  # save it:
+  target[["Processed_density"]] <- ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+  
+  #$$$$$ Limma
+  # CONTINUOUS (design matrix for continuous data)
+  # sexyphenodata$Age = sub("m$", "", sexyphenodata$Age) # delete nonnumeric characters
+  sexyphenodata$Age = as.numeric(as.character(sexyphenodata$Age))
+  design_matrix = model.matrix(~ sexyphenodata$Age)
+  rownames(design_matrix) = rownames(sexyphenodata)
+  colnames(design_matrix) <- c("Intercept", "Age")
+  print(design_matrix)
+  
+  # Launch limma
+  contrast_matrix <- makeContrasts("Age", levels=design_matrix)
+  diffexprfit <- lmFit(sexyexprdata, design_matrix)
+  diffexprfitcontrast <- contrasts.fit(diffexprfit, contrast_matrix)
+  diffexprfitcontrast <- eBayes(diffexprfitcontrast)
+  target[["LogFC_table"]] <- topTable(diffexprfitcontrast, coef = "Age", number = Inf, adjust = "BH", confint = TRUE)
+  # calculate standard error
+  target[["LogFC_table"]]$SE = (target[["LogFC_table"]]$CI.R - target[["LogFC_table"]]$CI.L) / 3.92
+  
+  
+  #$$$$$ Plot expression for top 1 diff expressed gene
+  # EXPR PLOT
+  topgenes = target[["LogFC_table"]]
+  copps = as.data.frame(cbind(colnames(sexyexprdata), as.numeric(sexyexprdata[rownames(topgenes)[1],]), as.numeric(sexyphenodata$Age)))
+  copps$V3 = as.numeric(as.character(copps$V3))
+  copps$V2 = as.double(as.character(copps$V2))
+  #copps$V2 = as.numeric(sub(",", ".", copps$V2))
+  copps = copps %>% arrange(V2)
+  ggplot(copps, aes(x = copps$V3, y = copps$V2, color = copps$V3)) + geom_point() + labs(colour = "age in months", x = "age", y = "Expression",title = paste("entrez ID", rownames(topgenes)[1], sep = " "))
+  # change months to weeks or years if needed in the next line:
+  target[["Topgene_expression"]] <- ggplot(copps, aes(x = copps$V3, y = copps$V2, color = copps$V3)) + geom_point() + labs(colour = "age in months", x = "age", y = "Expression",title = paste("entrez ID", rownames(topgenes)[1], sep = " "))
+  
+  # dump the data:
+  logFClist[["Mouse"]][["GSE132040"]][[tissue]][[sex]] <- target$LogFC_table
+  name = paste0("Mouse_GSE132040_", tissue)
+  gender = sex
+  pdf(paste0("./plots/", name, "_", gender, "_processeddensity", ".pdf"))
+  print(target$Processed_density)
+  dev.off()
+  pdf(paste0("./plots/", name, "_rawdensity", ".pdf"))
+  print(target$Raw_density)
+  dev.off()
+  pdf(paste0("./plots/", name, "_pca", ".pdf"))
+  print(target$PCA)
+  dev.off()
+  pdf(paste0("./plots/", name, "_", gender, "_topgeneexpression", ".pdf"))
+  print(target$Topgene_expression)
+  dev.off()
+  
+  # save progress
+  save(logFClist, file = "logFClist.RData")
+}
+
+# ouliers in small intestine:
+tissue = "Small Intestine"
+
+filteredphenodata = subset(filteredphenodata1, tissue.ch1 == tissue)
+
+filteredexprdata = filteredexprdata2[, rownames(filteredphenodata)]
+filteredexprdata = na.omit(filteredexprdata)
+
+#$$$$$ filter genes with low expression
+# LOG2 (logarithmize if needed)
+logdata = log2(filteredexprdata + 1)
+# CHECK PEAK
+# (first look if there is a peak at low values of expression)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# save it:
+target[["Raw_density"]] <- ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# SMASH IT
+# (if there is one, filter it out)
+filteredexprdata$rowsum = rowSums(filteredexprdata > 70) # take only genes having more than
+#                                                                10 reads...
+filteredexprdata1 = filteredexprdata[filteredexprdata$rowsum > 3,] # ...in at least
+#                                                  one third of samples (here it is 3 samples)
+filteredexprdata = subset(filteredexprdata1, select = -c(rowsum))
+logdata = log2(filteredexprdata + 1)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+
+#$$$$$ Convert to Entrez (from Ensembl)(sum reads), and normalize with RLE
+# CONVERT GENES (convert and take means)
+source("FUN.Ensembl_mouse_dictionary_create_for_genesymbol.R")
+dic = Ensembl_mouse_dictionary_create(filteredexprdata)
+source("FUN.Ensembl_to_entrez.R")
+normdata = Ensembl_to_entrez(filteredexprdata, dic)
+source("FUN.RLE_normalization.R")
+normdata = RLE_normalization(normdata)
+normdata  = log2(normdata + 1)
+visualstack = stack(normdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+#$$$$$ PCA
+exprforpca = data.frame(t(scale(t(normdata))))
+pcamodel = prcomp(t(exprforpca))
+cluster_values = as.data.frame(pcamodel[['x']])
+cluster_plot = ggplot(cluster_values, aes(x = PC1, y = PC2))
+color_pca = filteredphenodata[, "Age"]
+cluster_plot + geom_point(aes(color = color_pca))
+
+cluster_plot + geom_point(aes(color = color_pca)) + geom_text_repel(aes(label=rownames(cluster_values)),hjust="inward", vjust="inward")
+
+filteredphenodata = subset(filteredphenodata1, tissue.ch1 == tissue)
+
+filteredphenodata = filteredphenodata[-c(which(rownames(filteredphenodata) == "GSM3835658"), which(rownames(filteredphenodata) == "GSM3835229")),]
+
+filteredexprdata = filteredexprdata2[, rownames(filteredphenodata)]
+filteredexprdata = na.omit(filteredexprdata)
+
+#$$$$$ filter genes with low expression
+# LOG2 (logarithmize if needed)
+logdata = log2(filteredexprdata + 1)
+# CHECK PEAK
+# (first look if there is a peak at low values of expression)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# save it:
+target[["Raw_density"]] <- ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# SMASH IT
+# (if there is one, filter it out)
+filteredexprdata$rowsum = rowSums(filteredexprdata > 70) # take only genes having more than
+#                                                                10 reads...
+filteredexprdata1 = filteredexprdata[filteredexprdata$rowsum > 3,] # ...in at least
+#                                                  one third of samples (here it is 3 samples)
+filteredexprdata = subset(filteredexprdata1, select = -c(rowsum))
+logdata = log2(filteredexprdata + 1)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+
+#$$$$$ Convert to Entrez (from Ensembl)(sum reads), and normalize with RLE
+# CONVERT GENES (convert and take means)
+source("FUN.Ensembl_mouse_dictionary_create_for_genesymbol.R")
+dic = Ensembl_mouse_dictionary_create(filteredexprdata)
+source("FUN.Ensembl_to_entrez.R")
+normdata = Ensembl_to_entrez(filteredexprdata, dic)
+source("FUN.RLE_normalization.R")
+normdata = RLE_normalization(normdata)
+normdata  = log2(normdata + 1)
+visualstack = stack(normdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+#$$$$$ PCA
+exprforpca = data.frame(t(scale(t(normdata))))
+pcamodel = prcomp(t(exprforpca))
+cluster_values = as.data.frame(pcamodel[['x']])
+cluster_plot = ggplot(cluster_values, aes(x = PC1, y = PC2))
+color_pca = filteredphenodata[, "Age"]
+cluster_plot + geom_point(aes(color = color_pca))
+
+# save it:
+target[["PCA"]] <- cluster_plot + geom_point(aes(color = color_pca))
+
+for (sex in unique(filteredphenodata$Sex.ch1)){
+  #$$$$$ Filter sex, scale before limma
+  # separate by sex
+  # SEPARATED ALREADY
+  # (if you have a separate column)
+  sexyphenodata = subset(filteredphenodata, Sex.ch1 == sex)
+  
+  # filter expression data
+  sexyexprdata = normdata[, rownames(sexyphenodata)]
+  
+  # Scale
+  sexyexprdata = data.frame(scale(sexyexprdata))
+  visualstack = stack(sexyexprdata)
+  ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+  # save it:
+  target[["Processed_density"]] <- ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+  
+  #$$$$$ Limma
+  # CONTINUOUS (design matrix for continuous data)
+  # sexyphenodata$Age = sub("m$", "", sexyphenodata$Age) # delete nonnumeric characters
+  sexyphenodata$Age = as.numeric(as.character(sexyphenodata$Age))
+  design_matrix = model.matrix(~ sexyphenodata$Age)
+  rownames(design_matrix) = rownames(sexyphenodata)
+  colnames(design_matrix) <- c("Intercept", "Age")
+  print(design_matrix)
+  
+  # Launch limma
+  contrast_matrix <- makeContrasts("Age", levels=design_matrix)
+  diffexprfit <- lmFit(sexyexprdata, design_matrix)
+  diffexprfitcontrast <- contrasts.fit(diffexprfit, contrast_matrix)
+  diffexprfitcontrast <- eBayes(diffexprfitcontrast)
+  target[["LogFC_table"]] <- topTable(diffexprfitcontrast, coef = "Age", number = Inf, adjust = "BH", confint = TRUE)
+  # calculate standard error
+  target[["LogFC_table"]]$SE = (target[["LogFC_table"]]$CI.R - target[["LogFC_table"]]$CI.L) / 3.92
+  
+  
+  #$$$$$ Plot expression for top 1 diff expressed gene
+  # EXPR PLOT
+  topgenes = target[["LogFC_table"]]
+  copps = as.data.frame(cbind(colnames(sexyexprdata), as.numeric(sexyexprdata[rownames(topgenes)[1],]), as.numeric(sexyphenodata$Age)))
+  copps$V3 = as.numeric(as.character(copps$V3))
+  copps$V2 = as.double(as.character(copps$V2))
+  #copps$V2 = as.numeric(sub(",", ".", copps$V2))
+  copps = copps %>% arrange(V2)
+  ggplot(copps, aes(x = copps$V3, y = copps$V2, color = copps$V3)) + geom_point() + labs(colour = "age in months", x = "age", y = "Expression",title = paste("entrez ID", rownames(topgenes)[1], sep = " "))
+  # change months to weeks or years if needed in the next line:
+  target[["Topgene_expression"]] <- ggplot(copps, aes(x = copps$V3, y = copps$V2, color = copps$V3)) + geom_point() + labs(colour = "age in months", x = "age", y = "Expression",title = paste("entrez ID", rownames(topgenes)[1], sep = " "))
+  
+  # dump the data:
+  logFClist[["Mouse"]][["GSE132040"]][[tissue]][[sex]] <- target$LogFC_table
+  name = paste0("Mouse_GSE132040_", tissue)
+  gender = sex
+  pdf(paste0("./plots/", name, "_", gender, "_processeddensity", ".pdf"))
+  print(target$Processed_density)
+  dev.off()
+  pdf(paste0("./plots/", name, "_rawdensity", ".pdf"))
+  print(target$Raw_density)
+  dev.off()
+  pdf(paste0("./plots/", name, "_pca", ".pdf"))
+  print(target$PCA)
+  dev.off()
+  pdf(paste0("./plots/", name, "_", gender, "_topgeneexpression", ".pdf"))
+  print(target$Topgene_expression)
+  dev.off()
+  
+  # save progress
+  save(logFClist, file = "logFClist.RData")
+}
+
+# outliers in spleen:
+tissue = "Spleen"
+
+filteredphenodata = subset(filteredphenodata1, tissue.ch1 == tissue)
+
+filteredexprdata = filteredexprdata2[, rownames(filteredphenodata)]
+filteredexprdata = na.omit(filteredexprdata)
+
+#$$$$$ filter genes with low expression
+# LOG2 (logarithmize if needed)
+logdata = log2(filteredexprdata + 1)
+# CHECK PEAK
+# (first look if there is a peak at low values of expression)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# save it:
+target[["Raw_density"]] <- ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# SMASH IT
+# (if there is one, filter it out)
+filteredexprdata$rowsum = rowSums(filteredexprdata > 70) # take only genes having more than
+#                                                                10 reads...
+filteredexprdata1 = filteredexprdata[filteredexprdata$rowsum > 3,] # ...in at least
+#                                                  one third of samples (here it is 3 samples)
+filteredexprdata = subset(filteredexprdata1, select = -c(rowsum))
+logdata = log2(filteredexprdata + 1)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+
+#$$$$$ Convert to Entrez (from Ensembl)(sum reads), and normalize with RLE
+# CONVERT GENES (convert and take means)
+source("FUN.Ensembl_mouse_dictionary_create_for_genesymbol.R")
+dic = Ensembl_mouse_dictionary_create(filteredexprdata)
+source("FUN.Ensembl_to_entrez.R")
+normdata = Ensembl_to_entrez(filteredexprdata, dic)
+source("FUN.RLE_normalization.R")
+normdata = RLE_normalization(normdata)
+normdata  = log2(normdata + 1)
+visualstack = stack(normdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+#$$$$$ PCA
+exprforpca = data.frame(t(scale(t(normdata))))
+pcamodel = prcomp(t(exprforpca))
+cluster_values = as.data.frame(pcamodel[['x']])
+cluster_plot = ggplot(cluster_values, aes(x = PC1, y = PC2))
+color_pca = filteredphenodata[, "Age"]
+cluster_plot + geom_point(aes(color = color_pca))
+
+cluster_plot + geom_point(aes(color = color_pca)) + geom_text_repel(aes(label=rownames(cluster_values)),hjust="inward", vjust="inward")
+
+filteredphenodata = subset(filteredphenodata1, tissue.ch1 == tissue)
+
+filteredphenodata = filteredphenodata[-c(which(rownames(filteredphenodata) == "GSM3834912"), which(rownames(filteredphenodata) == "GSM3835053"), which(rownames(filteredphenodata) == "GSM3835704"), which(rownames(filteredphenodata) == "GSM3835337")),]
+
+filteredexprdata = filteredexprdata2[, rownames(filteredphenodata)]
+filteredexprdata = na.omit(filteredexprdata)
+
+#$$$$$ filter genes with low expression
+# LOG2 (logarithmize if needed)
+logdata = log2(filteredexprdata + 1)
+# CHECK PEAK
+# (first look if there is a peak at low values of expression)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# save it:
+target[["Raw_density"]] <- ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# SMASH IT
+# (if there is one, filter it out)
+filteredexprdata$rowsum = rowSums(filteredexprdata > 70) # take only genes having more than
+#                                                                10 reads...
+filteredexprdata1 = filteredexprdata[filteredexprdata$rowsum > 3,] # ...in at least
+#                                                  one third of samples (here it is 3 samples)
+filteredexprdata = subset(filteredexprdata1, select = -c(rowsum))
+logdata = log2(filteredexprdata + 1)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+
+#$$$$$ Convert to Entrez (from Ensembl)(sum reads), and normalize with RLE
+# CONVERT GENES (convert and take means)
+source("FUN.Ensembl_mouse_dictionary_create_for_genesymbol.R")
+dic = Ensembl_mouse_dictionary_create(filteredexprdata)
+source("FUN.Ensembl_to_entrez.R")
+normdata = Ensembl_to_entrez(filteredexprdata, dic)
+source("FUN.RLE_normalization.R")
+normdata = RLE_normalization(normdata)
+normdata  = log2(normdata + 1)
+visualstack = stack(normdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+#$$$$$ PCA
+exprforpca = data.frame(t(scale(t(normdata))))
+pcamodel = prcomp(t(exprforpca))
+cluster_values = as.data.frame(pcamodel[['x']])
+cluster_plot = ggplot(cluster_values, aes(x = PC1, y = PC2))
+color_pca = filteredphenodata[, "Age"]
+cluster_plot + geom_point(aes(color = color_pca))
+
+# save it:
+target[["PCA"]] <- cluster_plot + geom_point(aes(color = color_pca))
+
+for (sex in unique(filteredphenodata$Sex.ch1)){
+  #$$$$$ Filter sex, scale before limma
+  # separate by sex
+  # SEPARATED ALREADY
+  # (if you have a separate column)
+  sexyphenodata = subset(filteredphenodata, Sex.ch1 == sex)
+  
+  # filter expression data
+  sexyexprdata = normdata[, rownames(sexyphenodata)]
+  
+  # Scale
+  sexyexprdata = data.frame(scale(sexyexprdata))
+  visualstack = stack(sexyexprdata)
+  ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+  # save it:
+  target[["Processed_density"]] <- ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+  
+  #$$$$$ Limma
+  # CONTINUOUS (design matrix for continuous data)
+  # sexyphenodata$Age = sub("m$", "", sexyphenodata$Age) # delete nonnumeric characters
+  sexyphenodata$Age = as.numeric(as.character(sexyphenodata$Age))
+  design_matrix = model.matrix(~ sexyphenodata$Age)
+  rownames(design_matrix) = rownames(sexyphenodata)
+  colnames(design_matrix) <- c("Intercept", "Age")
+  print(design_matrix)
+  
+  # Launch limma
+  contrast_matrix <- makeContrasts("Age", levels=design_matrix)
+  diffexprfit <- lmFit(sexyexprdata, design_matrix)
+  diffexprfitcontrast <- contrasts.fit(diffexprfit, contrast_matrix)
+  diffexprfitcontrast <- eBayes(diffexprfitcontrast)
+  target[["LogFC_table"]] <- topTable(diffexprfitcontrast, coef = "Age", number = Inf, adjust = "BH", confint = TRUE)
+  # calculate standard error
+  target[["LogFC_table"]]$SE = (target[["LogFC_table"]]$CI.R - target[["LogFC_table"]]$CI.L) / 3.92
+  
+  
+  #$$$$$ Plot expression for top 1 diff expressed gene
+  # EXPR PLOT
+  topgenes = target[["LogFC_table"]]
+  copps = as.data.frame(cbind(colnames(sexyexprdata), as.numeric(sexyexprdata[rownames(topgenes)[1],]), as.numeric(sexyphenodata$Age)))
+  copps$V3 = as.numeric(as.character(copps$V3))
+  copps$V2 = as.double(as.character(copps$V2))
+  #copps$V2 = as.numeric(sub(",", ".", copps$V2))
+  copps = copps %>% arrange(V2)
+  ggplot(copps, aes(x = copps$V3, y = copps$V2, color = copps$V3)) + geom_point() + labs(colour = "age in months", x = "age", y = "Expression",title = paste("entrez ID", rownames(topgenes)[1], sep = " "))
+  # change months to weeks or years if needed in the next line:
+  target[["Topgene_expression"]] <- ggplot(copps, aes(x = copps$V3, y = copps$V2, color = copps$V3)) + geom_point() + labs(colour = "age in months", x = "age", y = "Expression",title = paste("entrez ID", rownames(topgenes)[1], sep = " "))
+  
+  # dump the data:
+  logFClist[["Mouse"]][["GSE132040"]][[tissue]][[sex]] <- target$LogFC_table
+  name = paste0("Mouse_GSE132040_", tissue)
+  gender = sex
+  pdf(paste0("./plots/", name, "_", gender, "_processeddensity", ".pdf"))
+  print(target$Processed_density)
+  dev.off()
+  pdf(paste0("./plots/", name, "_rawdensity", ".pdf"))
+  print(target$Raw_density)
+  dev.off()
+  pdf(paste0("./plots/", name, "_pca", ".pdf"))
+  print(target$PCA)
+  dev.off()
+  pdf(paste0("./plots/", name, "_", gender, "_topgeneexpression", ".pdf"))
+  print(target$Topgene_expression)
+  dev.off()
+  
+  # save progress
+  save(logFClist, file = "logFClist.RData")
+}
+
+
+# outliers in WBC:
+tissue = "WBC"
+
+filteredphenodata = subset(filteredphenodata1, tissue.ch1 == tissue)
+
+filteredexprdata = filteredexprdata2[, rownames(filteredphenodata)]
+filteredexprdata = na.omit(filteredexprdata)
+
+#$$$$$ filter genes with low expression
+# LOG2 (logarithmize if needed)
+logdata = log2(filteredexprdata + 1)
+# CHECK PEAK
+# (first look if there is a peak at low values of expression)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# save it:
+target[["Raw_density"]] <- ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# SMASH IT
+# (if there is one, filter it out)
+filteredexprdata$rowsum = rowSums(filteredexprdata > 70) # take only genes having more than
+#                                                                10 reads...
+filteredexprdata1 = filteredexprdata[filteredexprdata$rowsum > 3,] # ...in at least
+#                                                  one third of samples (here it is 3 samples)
+filteredexprdata = subset(filteredexprdata1, select = -c(rowsum))
+logdata = log2(filteredexprdata + 1)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+
+#$$$$$ Convert to Entrez (from Ensembl)(sum reads), and normalize with RLE
+# CONVERT GENES (convert and take means)
+source("FUN.Ensembl_mouse_dictionary_create_for_genesymbol.R")
+dic = Ensembl_mouse_dictionary_create(filteredexprdata)
+source("FUN.Ensembl_to_entrez.R")
+normdata = Ensembl_to_entrez(filteredexprdata, dic)
+source("FUN.RLE_normalization.R")
+normdata = RLE_normalization(normdata)
+normdata  = log2(normdata + 1)
+visualstack = stack(normdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+#$$$$$ PCA
+exprforpca = data.frame(t(scale(t(normdata))))
+pcamodel = prcomp(t(exprforpca))
+cluster_values = as.data.frame(pcamodel[['x']])
+cluster_plot = ggplot(cluster_values, aes(x = PC1, y = PC2))
+color_pca = filteredphenodata[, "Age"]
+cluster_plot + geom_point(aes(color = color_pca))
+
+cluster_plot + geom_point(aes(color = color_pca)) + geom_text_repel(aes(label=rownames(cluster_values)),hjust="inward", vjust="inward")
+
+filteredphenodata = subset(filteredphenodata1, tissue.ch1 == tissue)
+
+filteredphenodata = filteredphenodata[-c(which(rownames(filteredphenodata) == "GSM3834911"), which(rownames(filteredphenodata) == "GSM3835412"), which(rownames(filteredphenodata) == "GSM3834925")),]
+
+filteredexprdata = filteredexprdata2[, rownames(filteredphenodata)]
+filteredexprdata = na.omit(filteredexprdata)
+
+#$$$$$ filter genes with low expression
+# LOG2 (logarithmize if needed)
+logdata = log2(filteredexprdata + 1)
+# CHECK PEAK
+# (first look if there is a peak at low values of expression)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# save it:
+target[["Raw_density"]] <- ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# SMASH IT
+# (if there is one, filter it out)
+filteredexprdata$rowsum = rowSums(filteredexprdata > 70) # take only genes having more than
+#                                                                10 reads...
+filteredexprdata1 = filteredexprdata[filteredexprdata$rowsum > 3,] # ...in at least
+#                                                  one third of samples (here it is 3 samples)
+filteredexprdata = subset(filteredexprdata1, select = -c(rowsum))
+logdata = log2(filteredexprdata + 1)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+
+#$$$$$ Convert to Entrez (from Ensembl)(sum reads), and normalize with RLE
+# CONVERT GENES (convert and take means)
+source("FUN.Ensembl_mouse_dictionary_create_for_genesymbol.R")
+dic = Ensembl_mouse_dictionary_create(filteredexprdata)
+source("FUN.Ensembl_to_entrez.R")
+normdata = Ensembl_to_entrez(filteredexprdata, dic)
+source("FUN.RLE_normalization.R")
+normdata = RLE_normalization(normdata)
+normdata  = log2(normdata + 1)
+visualstack = stack(normdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+#$$$$$ PCA
+exprforpca = data.frame(t(scale(t(normdata))))
+pcamodel = prcomp(t(exprforpca))
+cluster_values = as.data.frame(pcamodel[['x']])
+cluster_plot = ggplot(cluster_values, aes(x = PC1, y = PC2))
+color_pca = filteredphenodata[, "Age"]
+cluster_plot + geom_point(aes(color = color_pca))
+
+# save it:
+target[["PCA"]] <- cluster_plot + geom_point(aes(color = color_pca))
+
+for (sex in unique(filteredphenodata$Sex.ch1)){
+  #$$$$$ Filter sex, scale before limma
+  # separate by sex
+  # SEPARATED ALREADY
+  # (if you have a separate column)
+  sexyphenodata = subset(filteredphenodata, Sex.ch1 == sex)
+  
+  # filter expression data
+  sexyexprdata = normdata[, rownames(sexyphenodata)]
+  
+  # Scale
+  sexyexprdata = data.frame(scale(sexyexprdata))
+  visualstack = stack(sexyexprdata)
+  ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+  # save it:
+  target[["Processed_density"]] <- ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+  
+  #$$$$$ Limma
+  # CONTINUOUS (design matrix for continuous data)
+  # sexyphenodata$Age = sub("m$", "", sexyphenodata$Age) # delete nonnumeric characters
+  sexyphenodata$Age = as.numeric(as.character(sexyphenodata$Age))
+  design_matrix = model.matrix(~ sexyphenodata$Age)
+  rownames(design_matrix) = rownames(sexyphenodata)
+  colnames(design_matrix) <- c("Intercept", "Age")
+  print(design_matrix)
+  
+  # Launch limma
+  contrast_matrix <- makeContrasts("Age", levels=design_matrix)
+  diffexprfit <- lmFit(sexyexprdata, design_matrix)
+  diffexprfitcontrast <- contrasts.fit(diffexprfit, contrast_matrix)
+  diffexprfitcontrast <- eBayes(diffexprfitcontrast)
+  target[["LogFC_table"]] <- topTable(diffexprfitcontrast, coef = "Age", number = Inf, adjust = "BH", confint = TRUE)
+  # calculate standard error
+  target[["LogFC_table"]]$SE = (target[["LogFC_table"]]$CI.R - target[["LogFC_table"]]$CI.L) / 3.92
+  
+  
+  #$$$$$ Plot expression for top 1 diff expressed gene
+  # EXPR PLOT
+  topgenes = target[["LogFC_table"]]
+  copps = as.data.frame(cbind(colnames(sexyexprdata), as.numeric(sexyexprdata[rownames(topgenes)[1],]), as.numeric(sexyphenodata$Age)))
+  copps$V3 = as.numeric(as.character(copps$V3))
+  copps$V2 = as.double(as.character(copps$V2))
+  #copps$V2 = as.numeric(sub(",", ".", copps$V2))
+  copps = copps %>% arrange(V2)
+  ggplot(copps, aes(x = copps$V3, y = copps$V2, color = copps$V3)) + geom_point() + labs(colour = "age in months", x = "age", y = "Expression",title = paste("entrez ID", rownames(topgenes)[1], sep = " "))
+  # change months to weeks or years if needed in the next line:
+  target[["Topgene_expression"]] <- ggplot(copps, aes(x = copps$V3, y = copps$V2, color = copps$V3)) + geom_point() + labs(colour = "age in months", x = "age", y = "Expression",title = paste("entrez ID", rownames(topgenes)[1], sep = " "))
+  
+  # dump the data:
+  logFClist[["Mouse"]][["GSE132040"]][[tissue]][[sex]] <- target$LogFC_table
+  name = paste0("Mouse_GSE132040_", tissue)
+  gender = sex
+  pdf(paste0("./plots/", name, "_", gender, "_processeddensity", ".pdf"))
+  print(target$Processed_density)
+  dev.off()
+  pdf(paste0("./plots/", name, "_rawdensity", ".pdf"))
+  print(target$Raw_density)
+  dev.off()
+  pdf(paste0("./plots/", name, "_pca", ".pdf"))
+  print(target$PCA)
+  dev.off()
+  pdf(paste0("./plots/", name, "_", gender, "_topgeneexpression", ".pdf"))
+  print(target$Topgene_expression)
+  dev.off()
+  
+  # save progress
+  save(logFClist, file = "logFClist.RData")
+}
+
+
+
+
 
 
 
