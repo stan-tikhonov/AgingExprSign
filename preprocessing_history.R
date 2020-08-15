@@ -7469,6 +7469,7 @@ colnames(filteredexprdata) = sub(".gencode.vM19", "", colnames(filteredexprdata)
 
 filteredexprdata = filteredexprdata[, filteredphenodata$trimmedtitle]
 colnames(filteredexprdata) = filteredphenodata$geo_accession
+rownames(filteredphenodata) = filteredphenodata$geo_accession
 
 filteredexprdata2 = filteredexprdata
 filteredphenodata1 = filteredphenodata
@@ -9933,11 +9934,16 @@ for (sex in unique(filteredphenodata$Sex.ch1)){
   save(logFClist, file = "logFClist.RData")
 }
 
+# let's see how many significantly diff expressed genes are there:
+overviewtable = matrix(nrow = 17, ncol = 2)
+rownames(overviewtable) = names(logFClist$Mouse$GSE132040)
+colnames(overviewtable) = c("Male", "Female")
 
-
-
-
-
+for (tissue in names(logFClist$Mouse$GSE132040)){
+  for (sex in names(logFClist$Mouse$GSE132040[[tissue]])){
+    overviewtable[tissue, sex] = sum(logFClist$Mouse$GSE132040[[tissue]][[sex]]$adj.P.Val < 0.05)
+  }
+}
 
 
 

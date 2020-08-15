@@ -1863,5 +1863,882 @@ save(logFClist, file = "logFClist.RData")
 
 ##### GSE53960 (END)
 
+##### GSE132040 (BEGIN)
+
+gse = getGEO("GSE132040") #here, type your gse id
+filteredphenodata = data.frame(pData(gse[[1]]))
+# set up target list element:
+target = list()
+
+
+filteredphenodata$Age = sub("^[^[:digit:]]*", "", filteredphenodata$characteristics_ch1.2)
+filteredphenodata$Age = sub("[^[:digit:]]*$", "", filteredphenodata$Age)
+
+filteredphenodata = filteredphenodata %>% filter(Age != "1")
+filteredphenodata = filteredphenodata %>% filter(tissue.ch1 != "NA")
+
+filteredexprdata = read.csv(file = "GSE132040_190214_A00111_0269_AHH3J3DSXX_190214_A00111_0270_BHHMFWDSXX.csv", header = T)
+filteredexprdata = filteredexprdata %>% column_to_rownames("gene")
+
+
+filteredphenodata$trimmedtitle = sub("^(.*)\\[(.*)\\].*", "\\2", filteredphenodata$title)
+colnames(filteredexprdata) = sub(".gencode.vM19", "", colnames(filteredexprdata))
+
+filteredexprdata = filteredexprdata[, filteredphenodata$trimmedtitle]
+colnames(filteredexprdata) = filteredphenodata$geo_accession
+rownames(filteredphenodata) = filteredphenodata$geo_accession
+
+filteredexprdata2 = filteredexprdata
+filteredphenodata1 = filteredphenodata
+
+# 1 outlier in heart:
+tissue = "Heart"
+
+filteredphenodata = subset(filteredphenodata1, tissue.ch1 == tissue)
+
+filteredexprdata = filteredexprdata2[, rownames(filteredphenodata)]
+filteredexprdata = na.omit(filteredexprdata)
+
+#$$$$$ filter genes with low expression
+# LOG2 (logarithmize if needed)
+logdata = log2(filteredexprdata + 1)
+# CHECK PEAK
+# (first look if there is a peak at low values of expression)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# save it:
+target[["Raw_density"]] <- ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# SMASH IT
+# (if there is one, filter it out)
+filteredexprdata$rowsum = rowSums(filteredexprdata > 70) # take only genes having more than
+#                                                                10 reads...
+filteredexprdata1 = filteredexprdata[filteredexprdata$rowsum > 3,] # ...in at least
+#                                                  one third of samples (here it is 3 samples)
+filteredexprdata = subset(filteredexprdata1, select = -c(rowsum))
+logdata = log2(filteredexprdata + 1)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+
+#$$$$$ Convert to Entrez (from Ensembl)(sum reads), and normalize with RLE
+# CONVERT GENES (convert and take means)
+source("FUN.Ensembl_mouse_dictionary_create_for_genesymbol.R")
+dic = Ensembl_mouse_dictionary_create(filteredexprdata)
+source("FUN.Ensembl_to_entrez.R")
+normdata = Ensembl_to_entrez(filteredexprdata, dic)
+source("FUN.RLE_normalization.R")
+normdata = RLE_normalization(normdata)
+normdata  = log2(normdata + 1)
+visualstack = stack(normdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+#$$$$$ PCA
+exprforpca = data.frame(t(scale(t(normdata))))
+pcamodel = prcomp(t(exprforpca))
+cluster_values = as.data.frame(pcamodel[['x']])
+cluster_plot = ggplot(cluster_values, aes(x = PC1, y = PC2))
+color_pca = filteredphenodata[, "Age"]
+cluster_plot + geom_point(aes(color = color_pca))
+
+cluster_plot + geom_point(aes(color = color_pca)) + geom_label_repel(aes(label=rownames(cluster_values)),hjust="inward", vjust="inward")
+cluster_plot + geom_point(aes(color = color_pca)) + geom_text_repel(aes(label=rownames(cluster_values)),hjust="inward", vjust="inward")
+
+filteredphenodata = subset(filteredphenodata1, tissue.ch1 == tissue)
+
+filteredphenodata = filteredphenodata[-c(which(rownames(filteredphenodata) == "GSM3835167")),]
+
+filteredexprdata = filteredexprdata2[, rownames(filteredphenodata)]
+filteredexprdata = na.omit(filteredexprdata)
+
+#$$$$$ filter genes with low expression
+# LOG2 (logarithmize if needed)
+logdata = log2(filteredexprdata + 1)
+# CHECK PEAK
+# (first look if there is a peak at low values of expression)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# save it:
+target[["Raw_density"]] <- ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# SMASH IT
+# (if there is one, filter it out)
+filteredexprdata$rowsum = rowSums(filteredexprdata > 70) # take only genes having more than
+#                                                                10 reads...
+filteredexprdata1 = filteredexprdata[filteredexprdata$rowsum > 3,] # ...in at least
+#                                                  one third of samples (here it is 3 samples)
+filteredexprdata = subset(filteredexprdata1, select = -c(rowsum))
+logdata = log2(filteredexprdata + 1)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+
+#$$$$$ Convert to Entrez (from Ensembl)(sum reads), and normalize with RLE
+# CONVERT GENES (convert and take means)
+source("FUN.Ensembl_mouse_dictionary_create_for_genesymbol.R")
+dic = Ensembl_mouse_dictionary_create(filteredexprdata)
+source("FUN.Ensembl_to_entrez.R")
+normdata = Ensembl_to_entrez(filteredexprdata, dic)
+source("FUN.RLE_normalization.R")
+normdata = RLE_normalization(normdata)
+normdata  = log2(normdata + 1)
+visualstack = stack(normdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+
+
+
+
+# general SD distribution
+
+tnormdata = t(normdata)
+tnormdata = as.data.frame(tnormdata)
+tnormdata$Age = filteredphenodata[rownames(tnormdata),]$Age
+tnormdata = tnormdata %>% group_by(Age) %>% summarise_all(sd)
+tnormdata = tnormdata %>% column_to_rownames("Age")
+sddata = as.data.frame(t(tnormdata))
+visualstack = stack(sddata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind)) + theme_minimal()
+
+# calculate SDs and perform Levene's test
+
+tnormdata = t(normdata)
+tnormdata = as.data.frame(tnormdata)
+tnormdata$Age = filteredphenodata[rownames(tnormdata),]$Age
+tnormdata = tnormdata %>% group_by(Age) %>% summarise_all(sd)
+tnormdata = tnormdata %>% column_to_rownames("Age")
+sddata = as.data.frame(t(tnormdata))
+maxage = as.character(max(as.numeric(colnames(sddata))))
+minage = as.character(min(as.numeric(colnames(sddata))))
+
+tnormdata = t(normdata)
+tnormdata = as.data.frame(tnormdata)
+tnormdata$Age = filteredphenodata[rownames(tnormdata),]$Age
+if (length(unique(tnormdata$Age)) > 2){
+  tnormdata = tnormdata %>% filter((Age %in% c(minage, maxage)))
+}
+tnormdata$Age = as.factor(tnormdata$Age)
+pvalues = c()
+
+for (rowname in rownames(sddata)){
+  #out = brown_forsythe_pval(tnormdata[[rowname]], tnormdata[["Age"]])
+  out = levene.test(tnormdata[, rowname], tnormdata[,"Age"], location = "mean")
+  pvalues = c(pvalues, out$p.value)
+}
+sddata$pvalue = pvalues
+sddata$adjpval = p.adjust(sddata$pvalue, method = "BH")
+sddata$ratio = sddata[, maxage] / sddata[, minage]
+
+print(paste("Number of significant genes:", as.character(sum(sddata$adjpval < 0.05))))
+
+#proof of principle:
+temp = sddata %>% filter(adjpval < 0.05) %>% mutate(logratio = log(ratio))
+temp = temp %>% group_by(logratio) %>% summarise(count = n())
+#print(ggplot(temp %>% filter(logratio > -0.005 & logratio < 0.005), aes(x = logratio, y = count)) + geom_point())
+#print(ggplot(temp, aes(x = logratio)) + geom_point(aes(x = logratio, y = count())))
+print(ggplot(temp, aes(x = logratio)) + geom_density() + theme_minimal())
+
+# perform the "mean" approach
+
+tnormdata = t(normdata)
+tnormdata = as.data.frame(tnormdata)
+tnormdata$Age = filteredphenodata[rownames(tnormdata),]$Age
+tnormdata = tnormdata %>% group_by(Age) %>% summarise_all(mean)
+tnormdata = tnormdata %>% column_to_rownames("Age")
+meandata = as.data.frame(t(tnormdata))
+
+metrictable = as.data.frame(cbind(rownames(filteredphenodata), filteredphenodata$Age))
+metrictable = metrictable %>% column_to_rownames("V1")
+metrictable = cbind(metrictable, rep("kok", length(rownames(metrictable))), rep("kok", length(rownames(metrictable))))
+colnames(metrictable) = c("Age", "Euclidean", "Pearson")
+metrictable$Euclidean = as.character(metrictable$Euclidean)
+metrictable$Pearson = as.character(metrictable$Pearson)
+
+for(object in rownames(metrictable)){
+  age = as.character(filteredphenodata[object, "Age"])
+  metrictable[object, "Pearson"] = cor(normdata[, object], meandata[, age], method = "pearson")
+  metrictable[object, "Euclidean"] = dist(rbind(normdata[, object], meandata[, age]))
+}
+metrictable$Euclidean = as.numeric(metrictable$Euclidean)
+metrictable$Pearson = as.numeric(metrictable$Pearson)
+metrictable$Age = as.factor(as.numeric(as.character(metrictable$Age)))
+
+print(ggplot(metrictable, aes(x = Age, y = Euclidean)) + geom_boxplot() + theme_minimal())
+print(ggplot(metrictable, aes(x = Age, y = Pearson)) + geom_boxplot() + theme_minimal())
+
+
+# outliers in limb muscle:
+tissue = "Limb Muscle"
+
+filteredphenodata = subset(filteredphenodata1, tissue.ch1 == tissue)
+
+filteredexprdata = filteredexprdata2[, rownames(filteredphenodata)]
+filteredexprdata = na.omit(filteredexprdata)
+
+#$$$$$ filter genes with low expression
+# LOG2 (logarithmize if needed)
+logdata = log2(filteredexprdata + 1)
+# CHECK PEAK
+# (first look if there is a peak at low values of expression)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# save it:
+target[["Raw_density"]] <- ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# SMASH IT
+# (if there is one, filter it out)
+filteredexprdata$rowsum = rowSums(filteredexprdata > 70) # take only genes having more than
+#                                                                10 reads...
+filteredexprdata1 = filteredexprdata[filteredexprdata$rowsum > 3,] # ...in at least
+#                                                  one third of samples (here it is 3 samples)
+filteredexprdata = subset(filteredexprdata1, select = -c(rowsum))
+logdata = log2(filteredexprdata + 1)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+
+#$$$$$ Convert to Entrez (from Ensembl)(sum reads), and normalize with RLE
+# CONVERT GENES (convert and take means)
+source("FUN.Ensembl_mouse_dictionary_create_for_genesymbol.R")
+dic = Ensembl_mouse_dictionary_create(filteredexprdata)
+source("FUN.Ensembl_to_entrez.R")
+normdata = Ensembl_to_entrez(filteredexprdata, dic)
+source("FUN.RLE_normalization.R")
+normdata = RLE_normalization(normdata)
+normdata  = log2(normdata + 1)
+visualstack = stack(normdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+#$$$$$ PCA
+exprforpca = data.frame(t(scale(t(normdata))))
+pcamodel = prcomp(t(exprforpca))
+cluster_values = as.data.frame(pcamodel[['x']])
+cluster_plot = ggplot(cluster_values, aes(x = PC1, y = PC2))
+color_pca = filteredphenodata[, "Age"]
+cluster_plot + geom_point(aes(color = color_pca))
+
+cluster_plot + geom_point(aes(color = color_pca)) + geom_text_repel(aes(label=rownames(cluster_values)),hjust="inward", vjust="inward")
+
+filteredphenodata = subset(filteredphenodata1, tissue.ch1 == tissue)
+
+filteredphenodata = filteredphenodata[-c(which(rownames(filteredphenodata) == "GSM3835510"), which(rownames(filteredphenodata) == "GSM3834844")),]
+
+filteredexprdata = filteredexprdata2[, rownames(filteredphenodata)]
+filteredexprdata = na.omit(filteredexprdata)
+
+#$$$$$ filter genes with low expression
+# LOG2 (logarithmize if needed)
+logdata = log2(filteredexprdata + 1)
+# CHECK PEAK
+# (first look if there is a peak at low values of expression)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# save it:
+target[["Raw_density"]] <- ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# SMASH IT
+# (if there is one, filter it out)
+filteredexprdata$rowsum = rowSums(filteredexprdata > 70) # take only genes having more than
+#                                                                10 reads...
+filteredexprdata1 = filteredexprdata[filteredexprdata$rowsum > 3,] # ...in at least
+#                                                  one third of samples (here it is 3 samples)
+filteredexprdata = subset(filteredexprdata1, select = -c(rowsum))
+logdata = log2(filteredexprdata + 1)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+
+#$$$$$ Convert to Entrez (from Ensembl)(sum reads), and normalize with RLE
+# CONVERT GENES (convert and take means)
+source("FUN.Ensembl_mouse_dictionary_create_for_genesymbol.R")
+dic = Ensembl_mouse_dictionary_create(filteredexprdata)
+source("FUN.Ensembl_to_entrez.R")
+normdata = Ensembl_to_entrez(filteredexprdata, dic)
+source("FUN.RLE_normalization.R")
+normdata = RLE_normalization(normdata)
+normdata  = log2(normdata + 1)
+visualstack = stack(normdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+# general SD distribution
+
+tnormdata = t(normdata)
+tnormdata = as.data.frame(tnormdata)
+tnormdata$Age = filteredphenodata[rownames(tnormdata),]$Age
+tnormdata = tnormdata %>% group_by(Age) %>% summarise_all(sd)
+tnormdata = tnormdata %>% column_to_rownames("Age")
+sddata = as.data.frame(t(tnormdata))
+visualstack = stack(sddata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind)) + theme_minimal()
+
+# calculate SDs and perform Levene's test
+
+tnormdata = t(normdata)
+tnormdata = as.data.frame(tnormdata)
+tnormdata$Age = filteredphenodata[rownames(tnormdata),]$Age
+tnormdata = tnormdata %>% group_by(Age) %>% summarise_all(sd)
+tnormdata = tnormdata %>% column_to_rownames("Age")
+sddata = as.data.frame(t(tnormdata))
+maxage = as.character(max(as.numeric(colnames(sddata))))
+minage = as.character(min(as.numeric(colnames(sddata))))
+
+tnormdata = t(normdata)
+tnormdata = as.data.frame(tnormdata)
+tnormdata$Age = filteredphenodata[rownames(tnormdata),]$Age
+if (length(unique(tnormdata$Age)) > 2){
+  tnormdata = tnormdata %>% filter((Age %in% c(minage, maxage)))
+}
+tnormdata$Age = as.factor(tnormdata$Age)
+pvalues = c()
+
+for (rowname in rownames(sddata)){
+  #out = brown_forsythe_pval(tnormdata[[rowname]], tnormdata[["Age"]])
+  out = levene.test(tnormdata[, rowname], tnormdata[,"Age"], location = "mean")
+  pvalues = c(pvalues, out$p.value)
+}
+sddata$pvalue = pvalues
+sddata$adjpval = p.adjust(sddata$pvalue, method = "BH")
+sddata$ratio = sddata[, maxage] / sddata[, minage]
+
+print(paste("Number of significant genes:", as.character(sum(sddata$adjpval < 0.05))))
+
+#proof of principle:
+temp = sddata %>% filter(adjpval < 0.05) %>% mutate(logratio = log(ratio))
+temp = temp %>% group_by(logratio) %>% summarise(count = n())
+#print(ggplot(temp %>% filter(logratio > -0.005 & logratio < 0.005), aes(x = logratio, y = count)) + geom_point())
+#print(ggplot(temp, aes(x = logratio)) + geom_point(aes(x = logratio, y = count())))
+print(ggplot(temp, aes(x = logratio)) + geom_density() + theme_minimal())
+
+# perform the "mean" approach
+
+tnormdata = t(normdata)
+tnormdata = as.data.frame(tnormdata)
+tnormdata$Age = filteredphenodata[rownames(tnormdata),]$Age
+tnormdata = tnormdata %>% group_by(Age) %>% summarise_all(mean)
+tnormdata = tnormdata %>% column_to_rownames("Age")
+meandata = as.data.frame(t(tnormdata))
+
+metrictable = as.data.frame(cbind(rownames(filteredphenodata), filteredphenodata$Age))
+metrictable = metrictable %>% column_to_rownames("V1")
+metrictable = cbind(metrictable, rep("kok", length(rownames(metrictable))), rep("kok", length(rownames(metrictable))))
+colnames(metrictable) = c("Age", "Euclidean", "Pearson")
+metrictable$Euclidean = as.character(metrictable$Euclidean)
+metrictable$Pearson = as.character(metrictable$Pearson)
+
+for(object in rownames(metrictable)){
+  age = as.character(filteredphenodata[object, "Age"])
+  metrictable[object, "Pearson"] = cor(normdata[, object], meandata[, age], method = "pearson")
+  metrictable[object, "Euclidean"] = dist(rbind(normdata[, object], meandata[, age]))
+}
+metrictable$Euclidean = as.numeric(metrictable$Euclidean)
+metrictable$Pearson = as.numeric(metrictable$Pearson)
+metrictable$Age = as.factor(as.numeric(as.character(metrictable$Age)))
+
+print(ggplot(metrictable, aes(x = Age, y = Euclidean)) + geom_boxplot() + theme_minimal())
+print(ggplot(metrictable, aes(x = Age, y = Pearson)) + geom_boxplot() + theme_minimal())
+
+# outliers in liver:
+
+tissue = "Liver"
+
+filteredphenodata = subset(filteredphenodata1, tissue.ch1 == tissue)
+
+filteredexprdata = filteredexprdata2[, rownames(filteredphenodata)]
+filteredexprdata = na.omit(filteredexprdata)
+
+#$$$$$ filter genes with low expression
+# LOG2 (logarithmize if needed)
+logdata = log2(filteredexprdata + 1)
+# CHECK PEAK
+# (first look if there is a peak at low values of expression)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# save it:
+target[["Raw_density"]] <- ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# SMASH IT
+# (if there is one, filter it out)
+filteredexprdata$rowsum = rowSums(filteredexprdata > 70) # take only genes having more than
+#                                                                10 reads...
+filteredexprdata1 = filteredexprdata[filteredexprdata$rowsum > 3,] # ...in at least
+#                                                  one third of samples (here it is 3 samples)
+filteredexprdata = subset(filteredexprdata1, select = -c(rowsum))
+logdata = log2(filteredexprdata + 1)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+
+#$$$$$ Convert to Entrez (from Ensembl)(sum reads), and normalize with RLE
+# CONVERT GENES (convert and take means)
+source("FUN.Ensembl_mouse_dictionary_create_for_genesymbol.R")
+dic = Ensembl_mouse_dictionary_create(filteredexprdata)
+source("FUN.Ensembl_to_entrez.R")
+normdata = Ensembl_to_entrez(filteredexprdata, dic)
+source("FUN.RLE_normalization.R")
+normdata = RLE_normalization(normdata)
+normdata  = log2(normdata + 1)
+visualstack = stack(normdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+#$$$$$ PCA
+exprforpca = data.frame(t(scale(t(normdata))))
+pcamodel = prcomp(t(exprforpca))
+cluster_values = as.data.frame(pcamodel[['x']])
+cluster_plot = ggplot(cluster_values, aes(x = PC1, y = PC2))
+color_pca = filteredphenodata[, "Age"]
+cluster_plot + geom_point(aes(color = color_pca))
+
+cluster_plot + geom_point(aes(color = color_pca)) + geom_text_repel(aes(label=rownames(cluster_values)),hjust="inward", vjust="inward")
+
+filteredphenodata = subset(filteredphenodata1, tissue.ch1 == tissue)
+
+filteredphenodata = filteredphenodata[-c(which(rownames(filteredphenodata) == "GSM3835680"), which(rownames(filteredphenodata) == "GSM3835669"), which(rownames(filteredphenodata) == "GSM3835105")),]
+
+filteredexprdata = filteredexprdata2[, rownames(filteredphenodata)]
+filteredexprdata = na.omit(filteredexprdata)
+
+#$$$$$ filter genes with low expression
+# LOG2 (logarithmize if needed)
+logdata = log2(filteredexprdata + 1)
+# CHECK PEAK
+# (first look if there is a peak at low values of expression)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# save it:
+target[["Raw_density"]] <- ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# SMASH IT
+# (if there is one, filter it out)
+filteredexprdata$rowsum = rowSums(filteredexprdata > 70) # take only genes having more than
+#                                                                10 reads...
+filteredexprdata1 = filteredexprdata[filteredexprdata$rowsum > 3,] # ...in at least
+#                                                  one third of samples (here it is 3 samples)
+filteredexprdata = subset(filteredexprdata1, select = -c(rowsum))
+logdata = log2(filteredexprdata + 1)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+
+#$$$$$ Convert to Entrez (from Ensembl)(sum reads), and normalize with RLE
+# CONVERT GENES (convert and take means)
+source("FUN.Ensembl_mouse_dictionary_create_for_genesymbol.R")
+dic = Ensembl_mouse_dictionary_create(filteredexprdata)
+source("FUN.Ensembl_to_entrez.R")
+normdata = Ensembl_to_entrez(filteredexprdata, dic)
+source("FUN.RLE_normalization.R")
+normdata = RLE_normalization(normdata)
+normdata  = log2(normdata + 1)
+visualstack = stack(normdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+# general SD distribution
+
+tnormdata = t(normdata)
+tnormdata = as.data.frame(tnormdata)
+tnormdata$Age = filteredphenodata[rownames(tnormdata),]$Age
+tnormdata = tnormdata %>% group_by(Age) %>% summarise_all(sd)
+tnormdata = tnormdata %>% column_to_rownames("Age")
+sddata = as.data.frame(t(tnormdata))
+visualstack = stack(sddata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind)) + theme_minimal()
+
+# calculate SDs and perform Levene's test
+
+tnormdata = t(normdata)
+tnormdata = as.data.frame(tnormdata)
+tnormdata$Age = filteredphenodata[rownames(tnormdata),]$Age
+tnormdata = tnormdata %>% group_by(Age) %>% summarise_all(sd)
+tnormdata = tnormdata %>% column_to_rownames("Age")
+sddata = as.data.frame(t(tnormdata))
+maxage = as.character(max(as.numeric(colnames(sddata))))
+minage = as.character(min(as.numeric(colnames(sddata))))
+
+tnormdata = t(normdata)
+tnormdata = as.data.frame(tnormdata)
+tnormdata$Age = filteredphenodata[rownames(tnormdata),]$Age
+if (length(unique(tnormdata$Age)) > 2){
+  tnormdata = tnormdata %>% filter((Age %in% c(minage, maxage)))
+}
+tnormdata$Age = as.factor(tnormdata$Age)
+pvalues = c()
+
+for (rowname in rownames(sddata)){
+  #out = brown_forsythe_pval(tnormdata[[rowname]], tnormdata[["Age"]])
+  out = levene.test(tnormdata[, rowname], tnormdata[,"Age"], location = "mean")
+  pvalues = c(pvalues, out$p.value)
+}
+sddata$pvalue = pvalues
+sddata$adjpval = p.adjust(sddata$pvalue, method = "BH")
+sddata$ratio = sddata[, maxage] / sddata[, minage]
+
+print(paste("Number of significant genes:", as.character(sum(sddata$adjpval < 0.05))))
+
+#proof of principle:
+temp = sddata %>% filter(adjpval < 0.05) %>% mutate(logratio = log(ratio))
+temp = temp %>% group_by(logratio) %>% summarise(count = n())
+#print(ggplot(temp %>% filter(logratio > -0.005 & logratio < 0.005), aes(x = logratio, y = count)) + geom_point())
+#print(ggplot(temp, aes(x = logratio)) + geom_point(aes(x = logratio, y = count())))
+print(ggplot(temp, aes(x = logratio)) + geom_density() + theme_minimal())
+
+# perform the "mean" approach
+
+tnormdata = t(normdata)
+tnormdata = as.data.frame(tnormdata)
+tnormdata$Age = filteredphenodata[rownames(tnormdata),]$Age
+tnormdata = tnormdata %>% group_by(Age) %>% summarise_all(mean)
+tnormdata = tnormdata %>% column_to_rownames("Age")
+meandata = as.data.frame(t(tnormdata))
+
+metrictable = as.data.frame(cbind(rownames(filteredphenodata), filteredphenodata$Age))
+metrictable = metrictable %>% column_to_rownames("V1")
+metrictable = cbind(metrictable, rep("kok", length(rownames(metrictable))), rep("kok", length(rownames(metrictable))))
+colnames(metrictable) = c("Age", "Euclidean", "Pearson")
+metrictable$Euclidean = as.character(metrictable$Euclidean)
+metrictable$Pearson = as.character(metrictable$Pearson)
+
+for(object in rownames(metrictable)){
+  age = as.character(filteredphenodata[object, "Age"])
+  metrictable[object, "Pearson"] = cor(normdata[, object], meandata[, age], method = "pearson")
+  metrictable[object, "Euclidean"] = dist(rbind(normdata[, object], meandata[, age]))
+}
+metrictable$Euclidean = as.numeric(metrictable$Euclidean)
+metrictable$Pearson = as.numeric(metrictable$Pearson)
+metrictable$Age = as.factor(as.numeric(as.character(metrictable$Age)))
+
+print(ggplot(metrictable, aes(x = Age, y = Euclidean)) + geom_boxplot() + theme_minimal())
+print(ggplot(metrictable, aes(x = Age, y = Pearson)) + geom_boxplot() + theme_minimal())
+
+# 2 outliers in lung:
+tissue = "Lung"
+
+filteredphenodata = subset(filteredphenodata1, tissue.ch1 == tissue)
+
+filteredexprdata = filteredexprdata2[, rownames(filteredphenodata)]
+filteredexprdata = na.omit(filteredexprdata)
+
+#$$$$$ filter genes with low expression
+# LOG2 (logarithmize if needed)
+logdata = log2(filteredexprdata + 1)
+# CHECK PEAK
+# (first look if there is a peak at low values of expression)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# save it:
+target[["Raw_density"]] <- ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# SMASH IT
+# (if there is one, filter it out)
+filteredexprdata$rowsum = rowSums(filteredexprdata > 70) # take only genes having more than
+#                                                                10 reads...
+filteredexprdata1 = filteredexprdata[filteredexprdata$rowsum > 3,] # ...in at least
+#                                                  one third of samples (here it is 3 samples)
+filteredexprdata = subset(filteredexprdata1, select = -c(rowsum))
+logdata = log2(filteredexprdata + 1)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+
+#$$$$$ Convert to Entrez (from Ensembl)(sum reads), and normalize with RLE
+# CONVERT GENES (convert and take means)
+source("FUN.Ensembl_mouse_dictionary_create_for_genesymbol.R")
+dic = Ensembl_mouse_dictionary_create(filteredexprdata)
+source("FUN.Ensembl_to_entrez.R")
+normdata = Ensembl_to_entrez(filteredexprdata, dic)
+source("FUN.RLE_normalization.R")
+normdata = RLE_normalization(normdata)
+normdata  = log2(normdata + 1)
+visualstack = stack(normdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+#$$$$$ PCA
+exprforpca = data.frame(t(scale(t(normdata))))
+pcamodel = prcomp(t(exprforpca))
+cluster_values = as.data.frame(pcamodel[['x']])
+cluster_plot = ggplot(cluster_values, aes(x = PC1, y = PC2))
+color_pca = filteredphenodata[, "Age"]
+cluster_plot + geom_point(aes(color = color_pca))
+
+cluster_plot + geom_point(aes(color = color_pca)) + geom_text_repel(aes(label=rownames(cluster_values)),hjust="inward", vjust="inward")
+
+filteredphenodata = subset(filteredphenodata1, tissue.ch1 == tissue)
+
+filteredphenodata = filteredphenodata[-c(which(rownames(filteredphenodata) == "GSM3835107"), which(rownames(filteredphenodata) == "GSM3835406")),]
+
+filteredexprdata = filteredexprdata2[, rownames(filteredphenodata)]
+filteredexprdata = na.omit(filteredexprdata)
+
+#$$$$$ filter genes with low expression
+# LOG2 (logarithmize if needed)
+logdata = log2(filteredexprdata + 1)
+# CHECK PEAK
+# (first look if there is a peak at low values of expression)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# save it:
+target[["Raw_density"]] <- ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# SMASH IT
+# (if there is one, filter it out)
+filteredexprdata$rowsum = rowSums(filteredexprdata > 70) # take only genes having more than
+#                                                                10 reads...
+filteredexprdata1 = filteredexprdata[filteredexprdata$rowsum > 3,] # ...in at least
+#                                                  one third of samples (here it is 3 samples)
+filteredexprdata = subset(filteredexprdata1, select = -c(rowsum))
+logdata = log2(filteredexprdata + 1)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+
+#$$$$$ Convert to Entrez (from Ensembl)(sum reads), and normalize with RLE
+# CONVERT GENES (convert and take means)
+source("FUN.Ensembl_mouse_dictionary_create_for_genesymbol.R")
+dic = Ensembl_mouse_dictionary_create(filteredexprdata)
+source("FUN.Ensembl_to_entrez.R")
+normdata = Ensembl_to_entrez(filteredexprdata, dic)
+source("FUN.RLE_normalization.R")
+normdata = RLE_normalization(normdata)
+normdata  = log2(normdata + 1)
+visualstack = stack(normdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+# general SD distribution
+
+tnormdata = t(normdata)
+tnormdata = as.data.frame(tnormdata)
+tnormdata$Age = filteredphenodata[rownames(tnormdata),]$Age
+tnormdata = tnormdata %>% group_by(Age) %>% summarise_all(sd)
+tnormdata = tnormdata %>% column_to_rownames("Age")
+sddata = as.data.frame(t(tnormdata))
+visualstack = stack(sddata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind)) + theme_minimal()
+
+# calculate SDs and perform Levene's test
+
+tnormdata = t(normdata)
+tnormdata = as.data.frame(tnormdata)
+tnormdata$Age = filteredphenodata[rownames(tnormdata),]$Age
+tnormdata = tnormdata %>% group_by(Age) %>% summarise_all(sd)
+tnormdata = tnormdata %>% column_to_rownames("Age")
+sddata = as.data.frame(t(tnormdata))
+maxage = as.character(max(as.numeric(colnames(sddata))))
+minage = as.character(min(as.numeric(colnames(sddata))))
+
+tnormdata = t(normdata)
+tnormdata = as.data.frame(tnormdata)
+tnormdata$Age = filteredphenodata[rownames(tnormdata),]$Age
+if (length(unique(tnormdata$Age)) > 2){
+  tnormdata = tnormdata %>% filter((Age %in% c(minage, maxage)))
+}
+tnormdata$Age = as.factor(tnormdata$Age)
+pvalues = c()
+
+for (rowname in rownames(sddata)){
+  #out = brown_forsythe_pval(tnormdata[[rowname]], tnormdata[["Age"]])
+  out = levene.test(tnormdata[, rowname], tnormdata[,"Age"], location = "mean")
+  pvalues = c(pvalues, out$p.value)
+}
+sddata$pvalue = pvalues
+sddata$adjpval = p.adjust(sddata$pvalue, method = "BH")
+sddata$ratio = sddata[, maxage] / sddata[, minage]
+
+print(paste("Number of significant genes:", as.character(sum(sddata$adjpval < 0.05))))
+
+#proof of principle:
+temp = sddata %>% filter(adjpval < 0.05) %>% mutate(logratio = log(ratio))
+temp = temp %>% group_by(logratio) %>% summarise(count = n())
+#print(ggplot(temp %>% filter(logratio > -0.005 & logratio < 0.005), aes(x = logratio, y = count)) + geom_point())
+#print(ggplot(temp, aes(x = logratio)) + geom_point(aes(x = logratio, y = count())))
+print(ggplot(temp, aes(x = logratio)) + geom_density() + theme_minimal())
+
+# perform the "mean" approach
+
+tnormdata = t(normdata)
+tnormdata = as.data.frame(tnormdata)
+tnormdata$Age = filteredphenodata[rownames(tnormdata),]$Age
+tnormdata = tnormdata %>% group_by(Age) %>% summarise_all(mean)
+tnormdata = tnormdata %>% column_to_rownames("Age")
+meandata = as.data.frame(t(tnormdata))
+
+metrictable = as.data.frame(cbind(rownames(filteredphenodata), filteredphenodata$Age))
+metrictable = metrictable %>% column_to_rownames("V1")
+metrictable = cbind(metrictable, rep("kok", length(rownames(metrictable))), rep("kok", length(rownames(metrictable))))
+colnames(metrictable) = c("Age", "Euclidean", "Pearson")
+metrictable$Euclidean = as.character(metrictable$Euclidean)
+metrictable$Pearson = as.character(metrictable$Pearson)
+
+for(object in rownames(metrictable)){
+  age = as.character(filteredphenodata[object, "Age"])
+  metrictable[object, "Pearson"] = cor(normdata[, object], meandata[, age], method = "pearson")
+  metrictable[object, "Euclidean"] = dist(rbind(normdata[, object], meandata[, age]))
+}
+metrictable$Euclidean = as.numeric(metrictable$Euclidean)
+metrictable$Pearson = as.numeric(metrictable$Pearson)
+metrictable$Age = as.factor(as.numeric(as.character(metrictable$Age)))
+
+print(ggplot(metrictable, aes(x = Age, y = Euclidean)) + geom_boxplot() + theme_minimal())
+print(ggplot(metrictable, aes(x = Age, y = Pearson)) + geom_boxplot() + theme_minimal())
+
+# 3 outliers in brain:
+tissue = "Brain"
+
+filteredphenodata = subset(filteredphenodata1, tissue.ch1 == tissue)
+
+filteredexprdata = filteredexprdata2[, rownames(filteredphenodata)]
+filteredexprdata = na.omit(filteredexprdata)
+
+#$$$$$ filter genes with low expression
+# LOG2 (logarithmize if needed)
+logdata = log2(filteredexprdata + 1)
+# CHECK PEAK
+# (first look if there is a peak at low values of expression)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# save it:
+target[["Raw_density"]] <- ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# SMASH IT
+# (if there is one, filter it out)
+filteredexprdata$rowsum = rowSums(filteredexprdata > 70) # take only genes having more than
+#                                                                10 reads...
+filteredexprdata1 = filteredexprdata[filteredexprdata$rowsum > 3,] # ...in at least
+#                                                  one third of samples (here it is 3 samples)
+filteredexprdata = subset(filteredexprdata1, select = -c(rowsum))
+logdata = log2(filteredexprdata + 1)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+
+#$$$$$ Convert to Entrez (from Ensembl)(sum reads), and normalize with RLE
+# CONVERT GENES (convert and take means)
+source("FUN.Ensembl_mouse_dictionary_create_for_genesymbol.R")
+dic = Ensembl_mouse_dictionary_create(filteredexprdata)
+source("FUN.Ensembl_to_entrez.R")
+normdata = Ensembl_to_entrez(filteredexprdata, dic)
+source("FUN.RLE_normalization.R")
+normdata = RLE_normalization(normdata)
+normdata  = log2(normdata + 1)
+visualstack = stack(normdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+#$$$$$ PCA
+exprforpca = data.frame(t(scale(t(normdata))))
+pcamodel = prcomp(t(exprforpca))
+cluster_values = as.data.frame(pcamodel[['x']])
+cluster_plot = ggplot(cluster_values, aes(x = PC1, y = PC2))
+color_pca = filteredphenodata[, "Age"]
+cluster_plot + geom_point(aes(color = color_pca))
+
+cluster_plot + geom_point(aes(color = color_pca)) + geom_label_repel(aes(label=rownames(cluster_values)),hjust="inward", vjust="inward")
+cluster_plot + geom_point(aes(color = color_pca)) + geom_text_repel(aes(label=rownames(cluster_values)),hjust="inward", vjust="inward")
+
+filteredphenodata = subset(filteredphenodata1, tissue.ch1 == tissue)
+
+filteredphenodata = filteredphenodata[-c(which(rownames(filteredphenodata) == "GSM3835428"), which(rownames(filteredphenodata) == "GSM3835538"), which(rownames(filteredphenodata) == "GSM3835262")),]
+
+filteredexprdata = filteredexprdata2[, rownames(filteredphenodata)]
+filteredexprdata = na.omit(filteredexprdata)
+
+#$$$$$ filter genes with low expression
+# LOG2 (logarithmize if needed)
+logdata = log2(filteredexprdata + 1)
+# CHECK PEAK
+# (first look if there is a peak at low values of expression)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# save it:
+target[["Raw_density"]] <- ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# SMASH IT
+# (if there is one, filter it out)
+filteredexprdata$rowsum = rowSums(filteredexprdata > 70) # take only genes having more than
+#                                                                10 reads...
+filteredexprdata1 = filteredexprdata[filteredexprdata$rowsum > 3,] # ...in at least
+#                                                  one third of samples (here it is 3 samples)
+filteredexprdata = subset(filteredexprdata1, select = -c(rowsum))
+logdata = log2(filteredexprdata + 1)
+visualstack = stack(logdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+
+#$$$$$ Convert to Entrez (from Ensembl)(sum reads), and normalize with RLE
+# CONVERT GENES (convert and take means)
+source("FUN.Ensembl_mouse_dictionary_create_for_genesymbol.R")
+dic = Ensembl_mouse_dictionary_create(filteredexprdata)
+source("FUN.Ensembl_to_entrez.R")
+normdata = Ensembl_to_entrez(filteredexprdata, dic)
+source("FUN.RLE_normalization.R")
+normdata = RLE_normalization(normdata)
+normdata  = log2(normdata + 1)
+visualstack = stack(normdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+# general SD distribution
+
+tnormdata = t(normdata)
+tnormdata = as.data.frame(tnormdata)
+tnormdata$Age = filteredphenodata[rownames(tnormdata),]$Age
+tnormdata = tnormdata %>% group_by(Age) %>% summarise_all(sd)
+tnormdata = tnormdata %>% column_to_rownames("Age")
+sddata = as.data.frame(t(tnormdata))
+visualstack = stack(sddata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind)) + theme_minimal()
+
+# calculate SDs and perform Levene's test
+
+tnormdata = t(normdata)
+tnormdata = as.data.frame(tnormdata)
+tnormdata$Age = filteredphenodata[rownames(tnormdata),]$Age
+tnormdata = tnormdata %>% group_by(Age) %>% summarise_all(sd)
+tnormdata = tnormdata %>% column_to_rownames("Age")
+sddata = as.data.frame(t(tnormdata))
+maxage = as.character(max(as.numeric(colnames(sddata))))
+minage = as.character(min(as.numeric(colnames(sddata))))
+
+tnormdata = t(normdata)
+tnormdata = as.data.frame(tnormdata)
+tnormdata$Age = filteredphenodata[rownames(tnormdata),]$Age
+if (length(unique(tnormdata$Age)) > 2){
+  tnormdata = tnormdata %>% filter((Age %in% c(minage, maxage)))
+}
+tnormdata$Age = as.factor(tnormdata$Age)
+pvalues = c()
+
+for (rowname in rownames(sddata)){
+  #out = brown_forsythe_pval(tnormdata[[rowname]], tnormdata[["Age"]])
+  out = levene.test(tnormdata[, rowname], tnormdata[,"Age"], location = "mean")
+  pvalues = c(pvalues, out$p.value)
+}
+sddata$pvalue = pvalues
+sddata$adjpval = p.adjust(sddata$pvalue, method = "BH")
+sddata$ratio = sddata[, maxage] / sddata[, minage]
+
+print(paste("Number of significant genes:", as.character(sum(sddata$adjpval < 0.05))))
+
+#proof of principle:
+temp = sddata %>% filter(adjpval < 0.05) %>% mutate(logratio = log(ratio))
+temp = temp %>% group_by(logratio) %>% summarise(count = n())
+#print(ggplot(temp %>% filter(logratio > -0.005 & logratio < 0.005), aes(x = logratio, y = count)) + geom_point())
+#print(ggplot(temp, aes(x = logratio)) + geom_point(aes(x = logratio, y = count())))
+print(ggplot(temp, aes(x = logratio)) + geom_density() + theme_minimal())
+
+# perform the "mean" approach
+
+tnormdata = t(normdata)
+tnormdata = as.data.frame(tnormdata)
+tnormdata$Age = filteredphenodata[rownames(tnormdata),]$Age
+tnormdata = tnormdata %>% group_by(Age) %>% summarise_all(mean)
+tnormdata = tnormdata %>% column_to_rownames("Age")
+meandata = as.data.frame(t(tnormdata))
+
+metrictable = as.data.frame(cbind(rownames(filteredphenodata), filteredphenodata$Age))
+metrictable = metrictable %>% column_to_rownames("V1")
+metrictable = cbind(metrictable, rep("kok", length(rownames(metrictable))), rep("kok", length(rownames(metrictable))))
+colnames(metrictable) = c("Age", "Euclidean", "Pearson")
+metrictable$Euclidean = as.character(metrictable$Euclidean)
+metrictable$Pearson = as.character(metrictable$Pearson)
+
+for(object in rownames(metrictable)){
+  age = as.character(filteredphenodata[object, "Age"])
+  metrictable[object, "Pearson"] = cor(normdata[, object], meandata[, age], method = "pearson")
+  metrictable[object, "Euclidean"] = dist(rbind(normdata[, object], meandata[, age]))
+}
+metrictable$Euclidean = as.numeric(metrictable$Euclidean)
+metrictable$Pearson = as.numeric(metrictable$Pearson)
+metrictable$Age = as.factor(as.numeric(as.character(metrictable$Age)))
+
+print(ggplot(metrictable, aes(x = Age, y = Euclidean)) + geom_boxplot() + theme_minimal())
+print(ggplot(metrictable, aes(x = Age, y = Pearson)) + geom_boxplot() + theme_minimal())
+
+
 
 
