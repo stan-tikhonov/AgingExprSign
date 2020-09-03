@@ -149,7 +149,7 @@ res = Correlation_loop_top_genes(logFCmatrix, pvalmatrix, seq(25,1000,by=25))
 
 source("FUN.Cormatricesmaker.R")
 cormethod = "pearson"
-thres = "275"
+thres = "250"
 res = cormatricesmaker(logFCunlisted, cormethod, signifgenesthres = thres)
 cortestsign = res$cortestsign
 cormatrixsign = res$cormatrixsign
@@ -208,44 +208,44 @@ for (name in names(chosencols)){
   corgenes[[name]] = rownames(subset(lol, lol$countspositive > length(chosencols[[name]]) * 0.2 | lol$countsnegative > length(chosencols[[name]]) * 0.2))
 }
 
-##### THIS IS FOR MANY SIGNATURES BUT ONE MINIMIZATION RUN FOR EACH SIGNATURE
-
-# prep shit:
-chosencols = list()
-chosencols[["Human"]] = colnames(logFCmatrixregr)[grepl(".*Human.*", colnames(logFCmatrixregr))]
-chosencols[["Rat"]] = colnames(logFCmatrixregr)[grepl(".*Rat.*", colnames(logFCmatrixregr))]
-chosencols[["Mouse"]] = colnames(logFCmatrixregr)[grepl(".*Mouse.*", colnames(logFCmatrixregr))]
-chosencols[["Brain"]] = colnames(logFCmatrixregr)[grepl(".*Brain.*", colnames(logFCmatrixregr)) | grepl(".*Frontalcortex.*", colnames(logFCmatrixregr)) | grepl(".*Cerebellum.*", colnames(logFCmatrixregr))]
-chosencols[["Muscle"]] = colnames(logFCmatrixregr)[grepl(".*Muscle.*", colnames(logFCmatrixregr))]
-chosencols[["Liver"]] = colnames(logFCmatrixregr)[grepl(".*Liver.*", colnames(logFCmatrixregr))]
-chosencols[["All"]] = colnames(logFCmatrixregr)
-
-source("FUN.Deming_minimizer.R")
-source("FUN.Signature_builder.R")
-source("FUN.Corheatmapper.R")
-
-agingsignatures = list()
-deminglist = list()
-deminglist[["Human"]] = list()
-deminglist[["Mouse"]] = list()
-deminglist[["Rat"]] = list()
-deminglist[["Muscle"]] = list()
-deminglist[["Brain"]] = list()
-deminglist[["Liver"]] = list()
-deminglist[["All"]] = list()
-
-# minimization loop:
-for (name in names(chosencols)){
-  # filter datasets for the individual signature:
-  logFCmatrixchosen = logFCmatrixregr[, chosencols[[name]]]
-  # minimize:
-  minimums = c()
-  for (i in 1:10){
-    deminglist[[name]][[i]] = deming_minimizer(logFCmatrixchosen, totalrownamematrix)
-    minimums = c(minimums, deminglist[[name]][[i]]$minimum)
-  }
-  print(paste0("I'm done with ", name))
-} 
+  ##### THIS IS FOR MANY SIGNATURES BUT ONE MINIMIZATION RUN FOR EACH SIGNATURE
+  
+  # prep shit:
+  chosencols = list()
+  chosencols[["Human"]] = colnames(logFCmatrixregr)[grepl(".*Human.*", colnames(logFCmatrixregr))]
+  chosencols[["Rat"]] = colnames(logFCmatrixregr)[grepl(".*Rat.*", colnames(logFCmatrixregr))]
+  chosencols[["Mouse"]] = colnames(logFCmatrixregr)[grepl(".*Mouse.*", colnames(logFCmatrixregr))]
+  chosencols[["Brain"]] = colnames(logFCmatrixregr)[grepl(".*Brain.*", colnames(logFCmatrixregr)) | grepl(".*Frontalcortex.*", colnames(logFCmatrixregr)) | grepl(".*Cerebellum.*", colnames(logFCmatrixregr))]
+  chosencols[["Muscle"]] = colnames(logFCmatrixregr)[grepl(".*Muscle.*", colnames(logFCmatrixregr))]
+  chosencols[["Liver"]] = colnames(logFCmatrixregr)[grepl(".*Liver.*", colnames(logFCmatrixregr))]
+  chosencols[["All"]] = colnames(logFCmatrixregr)
+  
+  source("FUN.Deming_minimizer.R")
+  source("FUN.Signature_builder.R")
+  source("FUN.Corheatmapper.R")
+  
+  agingsignatures = list()
+  deminglist = list()
+  deminglist[["Human"]] = list()
+  deminglist[["Mouse"]] = list()
+  deminglist[["Rat"]] = list()
+  deminglist[["Muscle"]] = list()
+  deminglist[["Brain"]] = list()
+  deminglist[["Liver"]] = list()
+  deminglist[["All"]] = list()
+  
+  # minimization loop:
+  for (name in names(chosencols)){
+    # filter datasets for the individual signature:
+    logFCmatrixchosen = logFCmatrixregr[, chosencols[[name]]]
+    # minimize:
+    minimums = c()
+    for (i in 1:10){
+      deminglist[[name]][[i]] = deming_minimizer(logFCmatrixchosen, totalrownamematrix)
+      minimums = c(minimums, deminglist[[name]][[i]]$minimum)
+    }
+    print(paste0("I'm done with ", name))
+  } 
 
 # or load its results:
 load("deminglist.RData")
