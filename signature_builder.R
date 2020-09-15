@@ -141,6 +141,12 @@ logFCmatrix = as.data.frame(logFCmatrix)
 SEmatrixregr = as.data.frame(SEmatrixregr)
 logFCmatrixregr = logFCmatrix
 
+# fix spaces in logFCmatrixregr colnames:
+colnames(logFCmatrixregr) = sub(" ", "", colnames(logFCmatrixregr))
+colnames(SEmatrixregr) = sub(" ", "", colnames(SEmatrixregr))
+
+names(logFCunlisted) = sub(" ", "", names(logFCunlisted))
+
 # determine the optimal threshold:
 source("FUN_Correlation_loop_top_genes.r")
 res = Correlation_loop_top_genes(logFCmatrix, pvalmatrix, seq(25,1000,by=25))
@@ -208,44 +214,44 @@ for (name in names(chosencols)){
   corgenes[[name]] = rownames(subset(lol, lol$countspositive > length(chosencols[[name]]) * 0.2 | lol$countsnegative > length(chosencols[[name]]) * 0.2))
 }
 
-  ##### THIS IS FOR MANY SIGNATURES BUT ONE MINIMIZATION RUN FOR EACH SIGNATURE
-  
-  # prep shit:
-  chosencols = list()
-  chosencols[["Human"]] = colnames(logFCmatrixregr)[grepl(".*Human.*", colnames(logFCmatrixregr))]
-  chosencols[["Rat"]] = colnames(logFCmatrixregr)[grepl(".*Rat.*", colnames(logFCmatrixregr))]
-  chosencols[["Mouse"]] = colnames(logFCmatrixregr)[grepl(".*Mouse.*", colnames(logFCmatrixregr))]
-  chosencols[["Brain"]] = colnames(logFCmatrixregr)[grepl(".*Brain.*", colnames(logFCmatrixregr)) | grepl(".*Frontalcortex.*", colnames(logFCmatrixregr)) | grepl(".*Cerebellum.*", colnames(logFCmatrixregr))]
-  chosencols[["Muscle"]] = colnames(logFCmatrixregr)[grepl(".*Muscle.*", colnames(logFCmatrixregr))]
-  chosencols[["Liver"]] = colnames(logFCmatrixregr)[grepl(".*Liver.*", colnames(logFCmatrixregr))]
-  chosencols[["All"]] = colnames(logFCmatrixregr)
-  
-  source("FUN.Deming_minimizer.R")
-  source("FUN.Signature_builder.R")
-  source("FUN.Corheatmapper.R")
-  
-  agingsignatures = list()
-  deminglist = list()
-  deminglist[["Human"]] = list()
-  deminglist[["Mouse"]] = list()
-  deminglist[["Rat"]] = list()
-  deminglist[["Muscle"]] = list()
-  deminglist[["Brain"]] = list()
-  deminglist[["Liver"]] = list()
-  deminglist[["All"]] = list()
-  
-  # minimization loop:
-  for (name in names(chosencols)){
-    # filter datasets for the individual signature:
-    logFCmatrixchosen = logFCmatrixregr[, chosencols[[name]]]
-    # minimize:
-    minimums = c()
-    for (i in 1:10){
-      deminglist[[name]][[i]] = deming_minimizer(logFCmatrixchosen, totalrownamematrix)
-      minimums = c(minimums, deminglist[[name]][[i]]$minimum)
-    }
-    print(paste0("I'm done with ", name))
-  } 
+##### THIS IS FOR MANY SIGNATURES BUT ONE MINIMIZATION RUN FOR EACH SIGNATURE
+
+# prep shit:
+chosencols = list()
+chosencols[["Human"]] = colnames(logFCmatrixregr)[grepl(".*Human.*", colnames(logFCmatrixregr))]
+chosencols[["Rat"]] = colnames(logFCmatrixregr)[grepl(".*Rat.*", colnames(logFCmatrixregr))]
+chosencols[["Mouse"]] = colnames(logFCmatrixregr)[grepl(".*Mouse.*", colnames(logFCmatrixregr))]
+chosencols[["Brain"]] = colnames(logFCmatrixregr)[grepl(".*Brain.*", colnames(logFCmatrixregr)) | grepl(".*Frontalcortex.*", colnames(logFCmatrixregr)) | grepl(".*Cerebellum.*", colnames(logFCmatrixregr))]
+chosencols[["Muscle"]] = colnames(logFCmatrixregr)[grepl(".*Muscle.*", colnames(logFCmatrixregr))]
+chosencols[["Liver"]] = colnames(logFCmatrixregr)[grepl(".*Liver.*", colnames(logFCmatrixregr))]
+chosencols[["All"]] = colnames(logFCmatrixregr)
+
+source("FUN.Deming_minimizer.R")
+source("FUN.Signature_builder.R")
+source("FUN.Corheatmapper.R")
+
+agingsignatures = list()
+deminglist = list()
+deminglist[["Human"]] = list()
+deminglist[["Mouse"]] = list()
+deminglist[["Rat"]] = list()
+deminglist[["Muscle"]] = list()
+deminglist[["Brain"]] = list()
+deminglist[["Liver"]] = list()
+deminglist[["All"]] = list()
+
+# minimization loop:
+for (name in names(chosencols)){
+  # filter datasets for the individual signature:
+  logFCmatrixchosen = logFCmatrixregr[, chosencols[[name]]]
+  # minimize:
+  minimums = c()
+  for (i in 1:10){
+    deminglist[[name]][[i]] = deming_minimizer(logFCmatrixchosen, totalrownamematrix)
+    minimums = c(minimums, deminglist[[name]][[i]]$minimum)
+  }
+  print(paste0("I'm done with ", name))
+} 
 
 # or load its results:
 load("deminglist.RData")
@@ -295,7 +301,7 @@ for (name in names(chosencols)){
   }
   ggheatmap = corheatmapper(cormatrix, cormethod = "spearman")
   print(ggheatmap)
-  pdf(paste0("./newplots/signatureplots/", name, "/initialheatmap", ".pdf"))
+  pdf(paste0("./newplots/signatureplots1/", name, "/initialheatmap", ".pdf"))
   print(ggheatmap)
   dev.off()
   
@@ -324,7 +330,7 @@ for (name in names(chosencols)){
       geom_hline(yintercept = 0) + geom_vline(xintercept = 0) +
       geom_abline(slope = kres[which(colnames(logFCmatrixchosen) == kekmatrix[i, "datasetid2"])]/kres[which(colnames(logFCmatrixchosen) == kekmatrix[i, "datasetid1"])], intercept = 0, colour = "red", size = 1)
     print(ggheatmap)
-    pdf(paste0("./newplots/signatureplots/", name, "/demingexample", i, ".pdf"))
+    pdf(paste0("./newplots/signatureplots1/", name, "/demingexample", i, ".pdf"))
     print(ggheatmap)
     dev.off()
   }
@@ -366,7 +372,7 @@ for (name in names(chosencols)){
     ggheatmap = ggplot(helpertable, aes(x = dataset, y = logFC, color = source)) + geom_pointrange(aes(ymin = logFC - SE, ymax = logFC + SE)) + geom_hline(yintercept = agingsignatures[[name]][geneids[i], "logFC"], colour = "red") +
       geom_hline(yintercept = 0) + ylim(-border, border)
     ggheatmap
-    pdf(paste0("./newplots/signatureplots/", name, "/mixedmodelexample", i, ".pdf"))
+    pdf(paste0("./newplots/signatureplots1/", name, "/mixedmodelexample", i, ".pdf"))
     print(ggheatmap)
     dev.off()
   }
@@ -390,7 +396,7 @@ for (name in names(chosencols)){
   #}
   ggheatmap = corheatmapper(cormatrix, cormethod = "spearman")
   print(ggheatmap)
-  pdf(paste0("./newplots/signatureplots/", name, "/verificationheatmap", ".pdf"))
+  pdf(paste0("./newplots/signatureplots1/", name, "/verificationheatmap", ".pdf"))
   print(ggheatmap)
   dev.off()
   
@@ -410,7 +416,7 @@ for (name in names(chosencols)){
                          midpoint = 0, space = "Lab", 
                          name="LogFC")
   ggheatmap
-  pdf(paste0("./newplots/signatureplots/", name, "/heatmapbygene", ".pdf"))
+  pdf(paste0("./newplots/signatureplots1/", name, "/heatmapbygene", ".pdf"))
   print(ggheatmap)
   dev.off()
   
@@ -423,7 +429,7 @@ save(agingsignatures, file = "agingsignatures.RData")
 source("FUN.Signature_builder_4.R")
 agingsignatures_v3 = list()
 # main loop:
-for (name in names(chosencols)[4:7]){
+for (name in names(chosencols)){
   # filter datasets for the individual signature:
   logFCmatrixchosen = logFCmatrixregr[, chosencols[[name]]]
   SEmatrixchosen = SEmatrixregr[, chosencols[[name]]]
@@ -460,7 +466,10 @@ for (name in names(chosencols)[4:7]){
   agingsignatures_v3[[name]] = signature_builder(logFCmatrixchosen, SEmatrixchosen, name)
   print(paste0("I'm done with ", name))
 }
-save(agingsignatures_v3, file = "agingsignatures_v3.RData")
+save(agingsignatures_v3, file = "agingsignatures_v4.RData")
+
+
+
 
 # this is only for plots:
 for (name in names(chosencols)){
@@ -481,7 +490,7 @@ for (name in names(chosencols)){
   }
   ggheatmap = corheatmapper(cormatrix, cormethod = "spearman")
   print(ggheatmap)
-  pdf(paste0("./newplots/signatureplots/", name, "/initialheatmap", ".pdf"))
+  pdf(paste0("./newplots/signatureplots1/", name, "/initialheatmap", ".pdf"))
   print(ggheatmap)
   dev.off()
   
@@ -510,7 +519,7 @@ for (name in names(chosencols)){
       geom_hline(yintercept = 0) + geom_vline(xintercept = 0) +
       geom_abline(slope = kres[which(colnames(logFCmatrixchosen) == kekmatrix[i, "datasetid2"])]/kres[which(colnames(logFCmatrixchosen) == kekmatrix[i, "datasetid1"])], intercept = 0, colour = "red", size = 1)
     print(ggheatmap)
-    pdf(paste0("./newplots/signatureplots/", name, "/demingexample", i, ".pdf"))
+    pdf(paste0("./newplots/signatureplots1/", name, "/demingexample", i, ".pdf"))
     print(ggheatmap)
     dev.off()
   }
@@ -550,7 +559,7 @@ for (name in names(chosencols)){
     ggheatmap = ggplot(helpertable, aes(x = dataset, y = logFC, color = source)) + geom_pointrange(aes(ymin = logFC - SE, ymax = logFC + SE)) + geom_hline(yintercept = agingsignatures_v3[[name]][geneids[i], "logFC"], colour = "red") +
       geom_hline(yintercept = 0) + ylim(-border, border)
     ggheatmap
-    pdf(paste0("./newplots/signatureplots/", name, "/mixedmodelexample", i, ".pdf"))
+    pdf(paste0("./newplots/signatureplots1/", name, "/mixedmodelexample", i, ".pdf"))
     print(ggheatmap)
     dev.off()
   }
@@ -560,6 +569,7 @@ for (name in names(chosencols)){
   colnames(logFCmatrixchosen)[which(colnames(logFCmatrixchosen) == "logFC")] = paste0(name, "_signature")
   logFCmatrixchosen = logFCmatrixchosen %>% column_to_rownames(var = "Row.names")
   significantgenematrix = logFCmatrixchosen[rownames(subset(agingsignatures_v3[[name]], adj_pval < 0.05)),]
+  #significantgenematrix = logFCmatrixchosen[rownames(subset(agingsignatures_v3[[name]], adj_pval_LOO < 0.05)),]
   cormatrix = cor(significantgenematrix, use = "pairwise.complete.obs", method = "pearson")
   
   #cormatrix = data.frame()
@@ -574,7 +584,7 @@ for (name in names(chosencols)){
   #}
   ggheatmap = corheatmapper(cormatrix, cormethod = "spearman")
   print(ggheatmap)
-  pdf(paste0("./newplots/signatureplots/", name, "/verificationheatmap", ".pdf"))
+  pdf(paste0("./newplots/signatureplots1/", name, "/verificationheatmap", ".pdf"))
   print(ggheatmap)
   dev.off()
   
@@ -594,7 +604,7 @@ for (name in names(chosencols)){
                          midpoint = 0, space = "Lab", 
                          name="LogFC")
   ggheatmap
-  pdf(paste0("./newplots/signatureplots/", name, "/heatmapbygene", ".pdf"))
+  pdf(paste0("./newplots/signatureplots1/", name, "/heatmapbygene", ".pdf"))
   print(ggheatmap)
   dev.off()
   
