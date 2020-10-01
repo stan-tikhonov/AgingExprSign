@@ -1983,13 +1983,28 @@ normdata  = log2(normdata + 1)
 visualstack = stack(normdata)
 ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
 
+#$$$$$ Filter sex, scale before limma
+# separate by sex
+# SEPARATED ALREADY
+# (if you have a separate column)
+sexyphenodata = subset(filteredphenodata, Sex.ch1 == "Male")
+
+# filter expression data
+sexyexprdata = normdata[, rownames(sexyphenodata)]
+
+# Scale
+sexyexprdata = data.frame(scale(sexyexprdata))
+visualstack = stack(sexyexprdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# save it:
+target[["Processed_density"]] <- ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
 
 
 
 
 # general SD distribution
 
-tnormdata = t(normdata)
+tnormdata = t(sexyexprdata)
 tnormdata = as.data.frame(tnormdata)
 tnormdata$Age = filteredphenodata[rownames(tnormdata),]$Age
 tnormdata = tnormdata %>% group_by(Age) %>% summarise_all(sd)
@@ -2038,7 +2053,7 @@ print(ggplot(temp, aes(x = logratio)) + geom_density() + theme_minimal())
 
 # perform the "mean" approach
 
-tnormdata = t(normdata)
+tnormdata = t(sexyexprdata)
 tnormdata = as.data.frame(tnormdata)
 tnormdata$Age = filteredphenodata[rownames(tnormdata),]$Age
 tnormdata = tnormdata %>% group_by(Age) %>% summarise_all(mean)
@@ -2156,9 +2171,42 @@ normdata  = log2(normdata + 1)
 visualstack = stack(normdata)
 ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
 
+#$$$$$ Filter sex, scale before limma
+# separate by sex
+# SEPARATED ALREADY
+# (if you have a separate column)
+sexyphenodata = subset(filteredphenodata, Sex.ch1 == sex)
+
+# filter expression data
+sexyexprdata = normdata[, rownames(sexyphenodata)]
+
+# Scale
+sexyexprdata = data.frame(scale(sexyexprdata))
+visualstack = stack(sexyexprdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# save it:
+target[["Processed_density"]] <- ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+#$$$$$ Filter sex, scale before limma
+# separate by sex
+# SEPARATED ALREADY
+# (if you have a separate column)
+sexyphenodata = subset(filteredphenodata, Sex.ch1 == "Male")
+
+# filter expression data
+sexyexprdata = normdata[, rownames(sexyphenodata)]
+
+# Scale
+sexyexprdata = data.frame(scale(sexyexprdata))
+visualstack = stack(sexyexprdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# save it:
+target[["Processed_density"]] <- ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+
 # general SD distribution
 
-tnormdata = t(normdata)
+tnormdata = t(sexyexprdata)
 tnormdata = as.data.frame(tnormdata)
 tnormdata$Age = filteredphenodata[rownames(tnormdata),]$Age
 tnormdata = tnormdata %>% group_by(Age) %>% summarise_all(sd)
@@ -2207,7 +2255,7 @@ print(ggplot(temp, aes(x = logratio)) + geom_density() + theme_minimal())
 
 # perform the "mean" approach
 
-tnormdata = t(normdata)
+tnormdata = t(sexyexprdata)
 tnormdata = as.data.frame(tnormdata)
 tnormdata$Age = filteredphenodata[rownames(tnormdata),]$Age
 tnormdata = tnormdata %>% group_by(Age) %>% summarise_all(mean)
@@ -2325,9 +2373,26 @@ normdata  = log2(normdata + 1)
 visualstack = stack(normdata)
 ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
 
+#$$$$$ Filter sex, scale before limma
+# separate by sex
+# SEPARATED ALREADY
+# (if you have a separate column)
+sexyphenodata = subset(filteredphenodata, Sex.ch1 == "Male")
+
+# filter expression data
+sexyexprdata = normdata[, rownames(sexyphenodata)]
+
+# Scale
+sexyexprdata = data.frame(scale(sexyexprdata))
+visualstack = stack(sexyexprdata)
+ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+# save it:
+target[["Processed_density"]] <- ggplot(visualstack, aes=(x=values)) + geom_density(aes(x=values, group=ind, color=ind))
+
+
 # general SD distribution
 
-tnormdata = t(normdata)
+tnormdata = t(sexyexprdata)
 tnormdata = as.data.frame(tnormdata)
 tnormdata$Age = filteredphenodata[rownames(tnormdata),]$Age
 tnormdata = tnormdata %>% group_by(Age) %>% summarise_all(sd)
@@ -2376,7 +2441,7 @@ print(ggplot(temp, aes(x = logratio)) + geom_density() + theme_minimal())
 
 # perform the "mean" approach
 
-tnormdata = t(normdata)
+tnormdata = t(sexyexprdata)
 tnormdata = as.data.frame(tnormdata)
 tnormdata$Age = filteredphenodata[rownames(tnormdata),]$Age
 tnormdata = tnormdata %>% group_by(Age) %>% summarise_all(mean)
