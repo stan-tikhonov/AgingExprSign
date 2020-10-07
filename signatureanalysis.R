@@ -1,7 +1,7 @@
 # subgroup analysis
 
 # get signatures:
-load("agingsignatures_v3.RData")
+load("agingsignatures_v4.RData")
 
 library(tidyverse)
 library(reshape2)
@@ -186,12 +186,16 @@ colnames(logFCforclus) = names(agingsignatures_v3)
 pvalsforclus = matrix(ncol = length(agingsignatures_v3), nrow = length(totalgenes))
 rownames(pvalsforclus) = totalgenes
 colnames(pvalsforclus) = names(agingsignatures_v3)
+robustforclus = matrix(ncol = length(agingsignatures_v3), nrow = length(totalgenes))
+rownames(robustforclus) = totalgenes
+colnames(robustforclus) = names(agingsignatures_v3)
 for (name in names(agingsignatures_v3)){
   logFCforclus[rownames(agingsignatures_v3[[name]]), name] = agingsignatures_v3[[name]]$logFC
   pvalsforclus[rownames(agingsignatures_v3[[name]]), name] = agingsignatures_v3[[name]]$adj_pval
+  robustforclus[rownames(agingsignatures_v3[[name]]), name] = agingsignatures_v3[[name]]$pval_robust
 }
 
-load("deminglistforsignatures.RData")
+load("deminglistforsignatures_v4.RData")
 # get the deming coefs:
 minimums = c()
 for (i in 1:10){
@@ -204,14 +208,26 @@ for (i in 1:length(colnames(logFCforclus))){
   logFCforclus[,i] = logFCforclus[,i] / kres[i]
 }
 
-logFCforclus = na.omit(logFCforclus)
+#logFCforclus = na.omit(logFCforclus)
 logFCforclus = as.data.frame(logFCforclus)
-pvalsforclus = na.omit(pvalsforclus)
+#pvalsforclus = na.omit(pvalsforclus)
 pvalsforclus = as.data.frame(pvalsforclus)
+#robustforclus = na.omit(robustforclus)
+robustforclus = as.data.frame(robustforclus)
+
 # filter genes by significance:
+
 # geometric mean of p-values:
-pvalsforclus$geommin = (pvalsforclus$Human * pvalsforclus$Rat * pvalsforclus$Mouse * pvalsforclus$Brain * pvalsforclus$Muscle * pvalsforclus$Liver * pvalsforclus$All) ^ (1/7)
-logFCforclusfiltered = logFCforclus[rownames(pvalsforclus %>% rownames_to_column("Row.names") %>% filter(geommin < 0.1) %>% column_to_rownames("Row.names")),]
+#pvalsforclus$geommin = (pvalsforclus$Human * pvalsforclus$Rat * pvalsforclus$Mouse * pvalsforclus$Brain * pvalsforclus$Muscle * pvalsforclus$Liver * pvalsforclus$All) ^ (1/7)
+#logFCforclusfiltered = logFCforclus[rownames(pvalsforclus %>% rownames_to_column("Row.names") %>% filter(geommin < 0.1) %>% column_to_rownames("Row.names")),]
+
+# must have adj pval < 0.05 and pval robust < 0.05 in at least one signature:
+truthmatrix = (pvalsforclus < 0.05) * (robustforclus < 0.05)
+truthmatrix = as.data.frame(truthmatrix)
+truthmatrix$signifcount = rowSums(truthmatrix == 1, na.rm = T)
+logFCforclusfiltered = logFCforclus[rownames(truthmatrix %>% filter(signifcount >= 1)),]
+logFCforclusfiltered = na.omit(logFCforclusfiltered)
+logFCforclusfiltered = apply(logFCforclusfiltered, 2, function(x) x / sd(x))
 
 logFCforclusfiltered = as.matrix(logFCforclusfiltered)
 genedendro = as.dendrogram(hclust(d = dist(x = logFCforclusfiltered, method = "manhattan"), method = "ward"))
@@ -613,8 +629,10 @@ library(psych)
 totalposrownames = c()
 totalnegrownames = c()
 for (name in names(agingsignatures_v3)){
-  pos = read.table(paste0("./GSEA_result/", name, "/", name, "_positive.xls"), sep = "\t", header = T)
-  neg = read.table(paste0("./GSEA_result/", name, "/", name, "_negative.xls"), sep = "\t", header = T)
+  pos = read.table(paste0("./GSEA_res_v4/", name, "/", name, "_positive.tsv"), sep = "\t", header = T)
+  neg = read.table(paste0("./GSEA_res_v4/", name, "/", name, "_negative.tsv"), sep = "\t", header = T)
+  #pos = read.table(paste0("./GSEA_result/", name, "/", name, "_positive.xls"), sep = "\t", header = T)
+  #neg = read.table(paste0("./GSEA_result/", name, "/", name, "_negative.xls"), sep = "\t", header = T)
   totalposrownames = union(totalposrownames, as.character(pos$NAME))
   totalnegrownames = union(totalnegrownames, as.character(neg$NAME))
 }
@@ -634,8 +652,10 @@ rownames(negtableq) = totalnegrownames
 colnames(negtableq) = names(agingsignatures_v3)
 
 for (name in names(agingsignatures_v3)){
-  pos = read.table(paste0("./GSEA_result/", name, "/", name, "_positive.xls"), sep = "\t", header = T)
-  neg = read.table(paste0("./GSEA_result/", name, "/", name, "_negative.xls"), sep = "\t", header = T)
+  pos = read.table(paste0("./GSEA_res_v4/", name, "/", name, "_positive.tsv"), sep = "\t", header = T)
+  neg = read.table(paste0("./GSEA_res_v4/", name, "/", name, "_negative.tsv"), sep = "\t", header = T)
+  #pos = read.table(paste0("./GSEA_result/", name, "/", name, "_positive.xls"), sep = "\t", header = T)
+  #neg = read.table(paste0("./GSEA_result/", name, "/", name, "_negative.xls"), sep = "\t", header = T)
   postable[as.character(pos$NAME), name] = pos$NES
   postableq[as.character(pos$NAME), name] = pos$FDR.q.val
   negtable[as.character(neg$NAME), name] = neg$NES
@@ -854,7 +874,7 @@ for (i in 1:10){
   print(paste0("Done with ", as.character(i), "th run"))
 }
   
-save(deminglistforsignatures, file = "deminglistforsignatures.RData")
+save(deminglistforsignatures, file = "deminglistforsignatures_v4.RData")
 
 # visualisation of coef distributions:
 

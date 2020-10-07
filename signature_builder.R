@@ -544,6 +544,7 @@ for (name in names(chosencols)){
   SEmatrixchosen = subset(SEmatrixchosen, rownames(SEmatrixchosen) %in% goodboys)
   logFCmatrixchosen$NACount = NULL
   
+  helpertablelist = list()
   # plot examples:
   geneids = agingsignatures_v3[[name]] %>% rownames_to_column("Row.names") %>% top_n(-5, adj_pval) %>% column_to_rownames("Row.names")
   geneids = rownames(geneids)
@@ -554,12 +555,18 @@ for (name in names(chosencols)){
     helpertable$SE = t(SEmatrixchosen[geneids[i],])
     helpertable$source = as.factor(sourcedata[rownames(helpertable),"dataset"])
     helpertable$dataset = rownames(helpertable)
+    helpertable$species = sub("^([^_]+)_(.*)", "\\1", rownames(helpertable))
+    helpertable$tissue = sub("^([^_]+)_([^_]+)_([^_]+)_(.*)", "\\3", rownames(helpertable))
+    helpertable$tissue = sub("Frontalcortex", "Brain", helpertable$tissue)
+    helpertable$tissue = sub("Cerebellum", "Brain", helpertable$tissue)
     helpertable = na.omit(helpertable)
+    helpertable = helpertable %>% arrange(dataset)
+    helpertablelist[[geneids[i]]] = helpertable
     border = max(abs(helpertable$logFC)) + max(helpertable$SE)
-    ggheatmap = ggplot(helpertable, aes(x = dataset, y = logFC, color = source)) + geom_pointrange(aes(ymin = logFC - SE, ymax = logFC + SE)) + geom_hline(yintercept = agingsignatures_v3[[name]][geneids[i], "logFC"], colour = "red") +
-      geom_hline(yintercept = 0) + ylim(-border, border)
-    ggheatmap
-    pdf(paste0("./newplots/signatureplots1/", name, "/mixedmodelexample", i, ".pdf"))
+    ggheatmap = ggplot(helpertable, aes(x = dataset, y = logFC, color = tissue, shape = species, label = source)) + geom_pointrange(aes(ymin = logFC - SE, ymax = logFC + SE)) + geom_hline(yintercept = agingsignatures_v3[[name]][geneids[i], "logFC"], colour = "red") +
+      geom_hline(yintercept = 0) + ylim(-border, border) + theme_minimal()# + geom_text_repel(aes(label=source))
+    print(ggheatmap)
+    pdf(paste0("./newplots/signatureplots1/", name, "/mixedmodelexample_shapes", geneids[i], ".pdf"))
     print(ggheatmap)
     dev.off()
   }
