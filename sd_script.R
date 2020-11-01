@@ -1895,6 +1895,7 @@ filteredphenodata1 = filteredphenodata
 tissue = "Heart"
 
 filteredphenodata = subset(filteredphenodata1, tissue.ch1 == tissue)
+filteredphenodata = subset(filteredphenodata, Sex.ch1 = "Male")
 
 filteredexprdata = filteredexprdata2[, rownames(filteredphenodata)]
 filteredexprdata = na.omit(filteredexprdata)
@@ -2069,6 +2070,7 @@ print(ggplot(metrictable, aes(x = Age, y = Pearson)) + geom_boxplot() + theme_mi
 tissue = "Limb Muscle"
 
 filteredphenodata = subset(filteredphenodata1, tissue.ch1 == tissue)
+filteredphenodata = subset(filteredphenodata, Sex.ch1 = "Male")
 
 filteredexprdata = filteredexprdata2[, rownames(filteredphenodata)]
 filteredexprdata = na.omit(filteredexprdata)
