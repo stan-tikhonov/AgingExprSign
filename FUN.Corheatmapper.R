@@ -21,7 +21,7 @@ get_upper_tri <- function(cormat){
   return(cormat)
 }
 
-corheatmapper = function(cormatrix, cormethod, corlimit = 1){
+corheatmapper = function(cormatrix, cormethod, textsize=16, corlimit = 1){
   cormatrix_2 <- reorder_cormat(cormatrix, method="average")
   cormatrix_2 = apply(cormatrix_2, 2, rev)
   upper_tri <- get_upper_tri(cormatrix_2)
@@ -31,9 +31,10 @@ corheatmapper = function(cormatrix, cormethod, corlimit = 1){
     scale_fill_gradient2(low = "blue4", high = "red4", mid = "white", 
                          midpoint = 0, limit = c(-corlimit,corlimit), space = "Lab", 
                          name=paste0(capitalize(cormethod), "\nCorrelation")) +
-    theme_minimal()+ # minimal theme
-    theme(axis.text.x = element_text(angle = 45, vjust = 1, size = 14, 
-                                     hjust = 1), axis.text.y = element_text(size = 14))+
-    coord_equal()
+    theme_minimal()+coord_equal() + # minimal theme
+    theme(axis.text.x = element_blank(), axis.title.x = element_blank(), axis.title.y = element_blank(), axis.text.y = element_text(size = textsize))
+    #+theme(axis.text.x = element_text(angle = 45, vjust = 1, size = 14, 
+                                    #hjust = 1), axis.text.y = element_text(size = 14))
+    
   return(ggheatmap)
 }
